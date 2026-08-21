@@ -39,13 +39,14 @@ docker run --rm hello-world
 docker compose version                                  # 2.20 or newer
 free -h                                                 # 16 GB RAM
 df -h ~                                                 # ~15 GB free
-lsmod | grep -E 'sch_netem|sch_htb|ifb|act_mirred'      # expect all four names
+lsmod | grep -E 'sch_netem|sch_htb|ifb|act_mirred'      # sch_netem is the one that matters; the rest add bidirectional shaping
 ```
 
-Docker is required for every lab. These kernel modules determine whether the
-network-shaping part of Lab 3 will run. If the last command doesn't list all
-four modules, run `sudo modprobe sch_netem sch_htb ifb act_mirred` and check
-again. If that fails, see [Fixes](#fixes).
+Docker is required for every lab. `sch_netem` is what drives the network-shaping
+part of Lab 3; `sch_htb`, `ifb` and `act_mirred` only add bidirectional (ingress)
+shaping on top, and Lab 3 falls back to egress-only impairment without them. If
+the last command doesn't list all four modules, run `sudo modprobe -a sch_netem
+sch_htb ifb act_mirred` and check again. If that fails, see [Fixes](#fixes).
 
 `lsmod` only shows modules already loaded, so it can't rule shaping out for
 certain. The container test in [Fixes](#fixes) does, by using the kernel your
@@ -88,8 +89,10 @@ workshop, so it is worth a look if ROS 2, Linux or networking are new to you:
 ## Network shaping
 
 Lab 3 adds delay and packet loss to a robot's link so you can see how each RMW copes
-with bad Wi-Fi. It uses Linux `tc`/NetEm from your kernel. If your kernel does not
-have it, that part of Lab 3 is skipped. A recorded capture may be provided. Everything else in the lab still runs.
+with bad Wi-Fi. It uses Linux `tc`/NetEm from your kernel. `sch_netem` alone is enough
+to run it, just egress-only; `sch_htb`, `ifb` and `act_mirred` add shaping on the
+return path too. If your kernel has none of them, that part of Lab 3 is skipped. A
+recorded capture may be provided. Everything else in the lab still runs.
 
 Missing modules may simply not be loaded yet. See Fixes.
 
@@ -102,7 +105,7 @@ host around it.
 Prefer a normal desktop or server install. Minimal, cloud and container images strip
 out `linux-modules-extra`, which is where the network degradation modules live.
 
-| Your setup | The workshop | The shaping step |
+| Your setup | The workshop | Network shaping |
 |---|---|---|
 | Linux on amd64 | Recommended | Yes |
 | Windows with WSL2 | Works | Yes on a current kernel. Older ones lack it, so run `wsl --update`. |
@@ -114,10 +117,12 @@ out `linux-modules-extra`, which is where the network degradation modules live.
 
 ## Fixes
 
-Modules present but not loaded, which is the usual case:
+Modules present but not loaded, which is the usual case (`-a` matters here: plain
+`modprobe sch_netem sch_htb ifb act_mirred` treats the last three names as
+parameters for `sch_netem` and only loads that one):
 
 ```bash
-sudo modprobe sch_netem sch_htb ifb act_mirred
+sudo modprobe -a sch_netem sch_htb ifb act_mirred
 ```
 
 Modules absent, common on minimal and cloud images:

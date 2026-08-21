@@ -194,13 +194,13 @@ case "$os_kind" in
             load)
                 if [ "$ifb" = "yes" ]; then
                     ok "Available, after loading the modules once:"
-                    info "sudo modprobe sch_netem sch_htb ifb act_mirred"
-                    shaping_note="run: sudo modprobe sch_netem sch_htb ifb act_mirred"
+                    info "sudo modprobe -a sch_netem sch_htb ifb act_mirred"
+                    shaping_note="run: sudo modprobe -a sch_netem sch_htb ifb act_mirred"
                 else
                     warn "sch_netem is available but not loaded. Missing entirely:$missing"
                     info "sudo apt install linux-modules-extra-\$(uname -r)"
-                    info "then: sudo modprobe sch_netem sch_htb ifb act_mirred"
-                    shaping_note="install linux-modules-extra, then modprobe sch_netem sch_htb ifb act_mirred"
+                    info "then: sudo modprobe -a sch_netem sch_htb ifb act_mirred"
+                    shaping_note="install linux-modules-extra, then modprobe -a sch_netem sch_htb ifb act_mirred"
                 fi
                 ;;
             no)
@@ -240,7 +240,9 @@ elif [ "$os_kind" = "linux" ] && [ "$ARCH" != "x86_64" ]; then
     verdict="untested"
 elif { [ "$netem" = "yes" ] || [ "$netem" = "load" ]; } && [ "$ifb" = "yes" ]; then
     verdict="full"
-elif [ "$netem" = "no" ] || [ "$ifb" = "no" ]; then
+elif [ "$netem" = "yes" ] || [ "$netem" = "load" ]; then
+    verdict="egress-only"
+elif [ "$netem" = "no" ]; then
     verdict="no-shaping"
 else
     verdict="unknown"
@@ -255,6 +257,12 @@ case "$verdict" in
         ok "Docker and the host network-shaping checks passed."
         info "Review any warnings above and run the container test below."
         [ -n "$shaping_note" ] && info "One setup step first: $shaping_note"
+        ;;
+    egress-only)
+        ok "Docker checks passed."
+        info "Lab 3 will run with egress-only shaping (sch_netem is available)."
+        info "sch_htb, ifb and act_mirred are missing, so the return path isn't shaped."
+        [ -n "$shaping_note" ] && info "For bidirectional shaping too: $shaping_note"
         ;;
     no-shaping)
         ok "Docker checks passed."
