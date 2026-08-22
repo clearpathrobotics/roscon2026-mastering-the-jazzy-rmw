@@ -16,7 +16,7 @@
 
 set -uo pipefail
 
-FORMAT="RMWCHECK/1"
+FORMAT="RMWCHECK/2"
 MIN_COMPOSE="2.20"
 MIN_DISK_GB=15
 MIN_RAM_GB=16
@@ -54,8 +54,38 @@ version_ge() {
 MODULES=""
 [ -r /proc/modules ] && MODULES="$(cat /proc/modules 2>/dev/null || true)"
 
-mod_loaded()  { [ -n "$MODULES" ] && grep -q "^$1 " <<<"$MODULES"; }
-mod_present() { mod_loaded "$1" || modinfo "$1" >/dev/null 2>&1; }
+mod_loaded() { [ -n "$MODULES" ] && grep -q "^$1 " <<<"$MODULES"; }
+# A module built directly into the kernel never shows up in /proc/modules, modinfo,
+# or as a .ko file on disk, so without this check it reads as absent when it isn't.
+mod_builtin() {
+    local builtin="/lib/modules/$(uname -r)/modules.builtin"
+    [ -r "$builtin" ] && grep -q "/$1\.ko$" "$builtin"
+}
+pkg_hint() {
+    local package
+    package="linux-modules-extra-$(uname -r)"
+    if command -v apt >/dev/null 2>&1 &&
+       command -v apt-cache >/dev/null 2>&1 &&
+       apt-cache show "$package" >/dev/null 2>&1; then
+        printf 'sudo apt install %s' "$package"
+    elif command -v dnf >/dev/null 2>&1; then
+        printf 'sudo dnf install kernel-modules-extra-$(uname -r)'
+    elif command -v yum >/dev/null 2>&1; then
+        printf 'sudo yum install kernel-modules-extra-$(uname -r)'
+    else
+        printf 'check how your kernel or distro provides sch_netem, sch_htb, ifb and act_mirred'
+    fi
+}
+# modinfo is also from kmod, so it can't be the only presence check on a kmod-less
+# host; fall back to looking for the .ko file directly, which needs only coreutils.
+mod_present() {
+    mod_loaded "$1" && return 0
+    mod_builtin "$1" && return 0
+    if command -v modinfo >/dev/null 2>&1; then
+        modinfo "$1" >/dev/null 2>&1 && return 0
+    fi
+    find "/lib/modules/$(uname -r)" -name "$1.ko*" -print -quit 2>/dev/null | grep -q .
+}
 
 OS="$(uname -s)"; ARCH="$(uname -m)"; KERNEL="$(uname -r)"
 os_kind="other"; os_label="This computer"
@@ -101,7 +131,7 @@ if [ -n "$ram_gb" ] && [ "$ram_gb" -lt "$((MIN_RAM_GB - 1))" ]; then
     ram_note="RAM is below the ${MIN_RAM_GB}G the workshop asks for."
 fi
 
-docker_ver="none"; compose_ver="none"; docker_ready="no"; is_docker_desktop="no"
+docker_ver="none"; compose_ver="none"; docker_daemon="no"; docker_ready="no"; is_docker_desktop="no"
 
 head_ "Docker"
 if ! command -v docker >/dev/null 2>&1; then
@@ -112,7 +142,7 @@ else
     docker_ver="$(docker --version 2>/dev/null | awk '{print $3}' | tr -d ',')"
     docker_ver="${docker_ver:-unknown}"
     if docker info >/dev/null 2>&1; then
-        docker_ready="yes"
+        docker_daemon="yes"; docker_ready="yes"
         ok "Docker $docker_ver, daemon reachable."
         case "$(docker info --format '{{.OperatingSystem}}' 2>/dev/null)" in
             *Desktop*) is_docker_desktop="yes" ;;
@@ -144,7 +174,7 @@ fi
 # On Docker Desktop the root dir is inside the VM, so fall back to $HOME.
 disk="unknown"; disk_gb=""
 disk_dir="$HOME"
-if [ "$docker_ready" = "yes" ]; then
+if [ "$docker_daemon" = "yes" ]; then
     root="$(docker info --format '{{.DockerRootDir}}' 2>/dev/null || echo '')"
     [ -n "$root" ] && [ -d "$root" ] && disk_dir="$root"
 fi
@@ -169,7 +199,7 @@ netem="unknown"; ifb="unknown"; shaping_note=""
 head_ "Network shaping (part of Lab 3)"
 case "$os_kind" in
     linux|wsl2)
-        if mod_loaded sch_netem; then
+        if mod_loaded sch_netem || mod_builtin sch_netem; then
             netem="yes"
         elif mod_present sch_netem; then
             netem="load"
@@ -177,11 +207,15 @@ case "$os_kind" in
             netem="no"
         fi
 
-        ifb="no"
+        ifb="no"; ingress_unloaded=""
         if [ "$netem" != "no" ]; then
             missing=""
             for m in sch_htb ifb act_mirred; do
-                mod_present "$m" || missing="$missing $m"
+                if mod_present "$m"; then
+                    mod_loaded "$m" || mod_builtin "$m" || ingress_unloaded="$ingress_unloaded $m"
+                else
+                    missing="$missing $m"
+                fi
             done
             [ -z "$missing" ] && ifb="yes"
         fi
@@ -189,7 +223,16 @@ case "$os_kind" in
         case "$netem" in
             yes)
                 ok "Available."
-                [ "$ifb" = "no" ] && warn "Full shaping is unavailable. Missing:$missing"
+                if [ "$ifb" = "no" ]; then
+                    warn "Full shaping is unavailable. Missing:$missing"
+                    info "$(pkg_hint)"
+                    info "then: sudo modprobe -a sch_netem sch_htb ifb act_mirred"
+                    shaping_note="install the missing modules, then modprobe -a sch_netem sch_htb ifb act_mirred"
+                elif [ -n "$ingress_unloaded" ]; then
+                    info "Bidirectional shaping needs one more step, present but not loaded:$ingress_unloaded"
+                    info "sudo modprobe -a sch_netem sch_htb ifb act_mirred"
+                    shaping_note="run: sudo modprobe -a sch_netem sch_htb ifb act_mirred"
+                fi
                 ;;
             load)
                 if [ "$ifb" = "yes" ]; then
@@ -198,9 +241,9 @@ case "$os_kind" in
                     shaping_note="run: sudo modprobe -a sch_netem sch_htb ifb act_mirred"
                 else
                     warn "sch_netem is available but not loaded. Missing entirely:$missing"
-                    info "sudo apt install linux-modules-extra-\$(uname -r)"
+                    info "$(pkg_hint)"
                     info "then: sudo modprobe -a sch_netem sch_htb ifb act_mirred"
-                    shaping_note="install linux-modules-extra, then modprobe -a sch_netem sch_htb ifb act_mirred"
+                    shaping_note="install the missing modules, then modprobe -a sch_netem sch_htb ifb act_mirred"
                 fi
                 ;;
             no)
@@ -211,8 +254,8 @@ case "$os_kind" in
                     shaping_note="run wsl --update then wsl --shutdown"
                 else
                     info "Usually a minimal or cloud image, which strips these out. Try:"
-                    info "sudo apt install linux-modules-extra-\$(uname -r)"
-                    shaping_note="try linux-modules-extra"
+                    info "$(pkg_hint)"
+                    shaping_note="try installing your distro's kernel modules-extra package"
                 fi
                 ;;
         esac
@@ -266,8 +309,8 @@ case "$verdict" in
         ;;
     no-shaping)
         ok "Docker checks passed."
-        info "The Lab 3 step that degrades a robot's network link will not run here."
-        info "A recorded capture may be provided instead."
+        info "The host check could not find sch_netem. Run the container test below"
+        info "before concluding that the Lab 3 network-degradation step will not run."
         [ -n "$shaping_note" ] && info "To turn it on: $shaping_note"
         ;;
     no-docker)

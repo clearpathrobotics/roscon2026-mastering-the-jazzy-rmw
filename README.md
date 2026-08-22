@@ -18,9 +18,19 @@ changed since Humble.
 
 The labs run in Docker in a Linux environment on your own laptop. You'll need to check your computer's compatibility.
 
-Come back on September 15, 2026 to download the repo and docker images.
+> **Before you travel:** clone this repo and pull the Docker images once they land
+> on **September 15, 2026**. They're several GB, and conference Wi-Fi won't cope
+> with a room full of people downloading them on-site.
 
-## 1. Check your computer
+## 1. Install Docker
+
+Docker Engine plus Compose v2.20 or newer, inside the Linux environment you will use.
+[docs.docker.com/engine/install](https://docs.docker.com/engine/install/)
+
+If you are setting up native Linux for the workshop, use Ubuntu on amd64. Ubuntu
+22.04, 24.04 and 26.04 are all suitable because the labs run in Docker.
+
+## 2. Check your computer
 
 A script is provided for convenience to check your Linux environment:
 
@@ -30,7 +40,7 @@ bash compat-check.sh
 ```
 
 It reads your system and prints a summary line at the end. Keep that line for
-step 2.
+step 3.
 
 To check by hand instead:
 
@@ -38,7 +48,7 @@ To check by hand instead:
 docker run --rm hello-world
 docker compose version                                  # 2.20 or newer
 free -h                                                 # 16 GB RAM
-df -h ~                                                 # ~15 GB free
+df -h ~                                                 # ~15 GB free (roughly; the script checks where Docker actually stores data)
 lsmod | grep -E 'sch_netem|sch_htb|ifb|act_mirred'      # sch_netem is the one that matters; the rest add bidirectional shaping
 ```
 
@@ -52,20 +62,13 @@ sch_htb ifb act_mirred` and check again. If that fails, see [Fixes](#fixes).
 certain. The container test in [Fixes](#fixes) does, by using the kernel your
 containers actually get.
 
-## 2. Fill in the form
+## 3. Fill in the form
 
-**<POLL-LINK>**
+Registered attendees get the form link by email from the organizers. It is not
+posted here since this repo is public.
 
 Tell us what you are bringing and how the check went. If it did not pass, say whether
 you could bring a different computer instead. Please answer either way.
-
-## 3. Install Docker
-
-Docker Engine plus Compose v2.20 or newer, inside the Linux environment you will use.
-[docs.docker.com/engine/install](https://docs.docker.com/engine/install/)
-
-Macs are untested. If you are bringing one, run the script and tell us the result in
-the form.
 
 ## Optional reading
 
@@ -91,8 +94,8 @@ workshop, so it is worth a look if ROS 2, Linux or networking are new to you:
 Lab 3 adds delay and packet loss to a robot's link so you can see how each RMW copes
 with bad Wi-Fi. It uses Linux `tc`/NetEm from your kernel. `sch_netem` alone is enough
 to run it, just egress-only; `sch_htb`, `ifb` and `act_mirred` add shaping on the
-return path too. If your kernel has none of them, that part of Lab 3 is skipped. A
-recorded capture may be provided. Everything else in the lab still runs.
+return path too. If your kernel does not have `sch_netem`, that part of Lab 3 is
+skipped. A recorded capture may be provided. Everything else in the lab still runs.
 
 Missing modules may simply not be loaded yet. See Fixes.
 
@@ -102,12 +105,13 @@ The workshop needs a Linux environment with Docker Engine. Native Linux, WSL2 an
 VM all count. Run the script inside whichever one you will use on the day, not on the
 host around it.
 
-Prefer a normal desktop or server install. Minimal, cloud and container images strip
-out `linux-modules-extra`, which is where the network degradation modules live.
+Prefer a normal desktop or server install. Minimal, cloud and container images may
+omit the network degradation modules. Packaging varies by distribution and kernel.
 
 | Your setup | The workshop | Network shaping |
 |---|---|---|
-| Linux on amd64 | Recommended | Yes |
+| Native Ubuntu 22.04, 24.04 or 26.04 on amd64 | Recommended | Yes |
+| Other Linux on amd64 | Expected to work | Depends on your kernel. Run the check. |
 | Windows with WSL2 | Works | Yes on a current kernel. Older ones lack it, so run `wsl --update`. |
 | Linux VM on an amd64 host | Works | Yes |
 | Linux on arm64 | Untested | Depends on your kernel. Run the check. |
@@ -125,18 +129,22 @@ parameters for `sch_netem` and only loads that one):
 sudo modprobe -a sch_netem sch_htb ifb act_mirred
 ```
 
-Modules absent, common on minimal and cloud images:
-
-```bash
-sudo apt install linux-modules-extra-$(uname -r)
-```
-
-Windows, in PowerShell, then reopen your Linux terminal:
+Windows with WSL2, in PowerShell, then reopen your Linux terminal:
 
 ```powershell
 wsl --update
 wsl --shutdown
 ```
+
+Modules absent on native Linux, common on minimal and cloud images. Some Ubuntu
+kernels provide them in a version-matched extra-modules package:
+
+```bash
+sudo apt install linux-modules-extra-$(uname -r)
+```
+
+If that exact package does not exist, check how your distribution or kernel provides
+`sch_netem`, `sch_htb`, `ifb` and `act_mirred`; package names are not portable.
 
 macOS: run the script and put the result in the form.
 
