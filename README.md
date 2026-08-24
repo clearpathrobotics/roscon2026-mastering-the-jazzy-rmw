@@ -12,6 +12,9 @@ middleware as a black box. Using a multi-modal MCAP dataset, attendees run
 high-scale stress tests on their own hardware to see how middleware behavior has
 changed since Humble.
 
+> [!TIP]
+> Watch this repository to get notified of updates.
+
 ---
 
 # Before the workshop
@@ -115,9 +118,9 @@ omit the network degradation modules. Packaging varies by distribution and kerne
 | Windows with WSL2 | Works | Yes on a current kernel. Older ones lack it, so run `wsl --update`. |
 | Linux VM on an amd64 host | Works | Yes |
 | Linux on arm64 | Untested | Depends on your kernel. Run the check. |
-| NVIDIA Jetson (L4T) | Works | No, the stock L4T kernel ships without the modules. |
+| NVIDIA Jetson (L4T) | Works, but no network shaping | No, the stock L4T kernel ships without the modules. |
 | Any Mac | Untested | Untested. Run the script and tell us what you get. |
-| Docker Desktop, any OS | Not recommended | Untested |
+| Docker Desktop, any OS | Untested | Skip the host checks and run the container test in [Fixes](#fixes) instead. |
 
 ## Fixes
 
@@ -147,6 +150,10 @@ If that exact package does not exist, check how your distribution or kernel prov
 `sch_netem`, `sch_htb`, `ifb` and `act_mirred`; package names are not portable.
 
 macOS: run the script and put the result in the form.
+
+Docker Desktop, any OS: the host-side checks above may not reflect what containers
+actually get, since Docker Desktop can run them on a different kernel. Skip straight
+to the container test below.
 
 To confirm that NetEm works inside a container:
 
