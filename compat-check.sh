@@ -26,8 +26,9 @@ if [ -t 1 ] && [ -z "${NO_COLOR:-}" ]; then
 else
     RED=''; GRN=''; YEL=''; NC=''
 fi
+warn_count=0
 ok()   { printf '%s[+]%s %s\n' "$GRN" "$NC" "$*"; }
-warn() { printf '%s[!]%s %s\n' "$YEL" "$NC" "$*"; }
+warn() { warn_count=$((warn_count + 1)); printf '%s[!]%s %s\n' "$YEL" "$NC" "$*"; }
 bad()  { printf '%s[x]%s %s\n' "$RED" "$NC" "$*"; }
 info() { printf '    %s\n' "$*"; }
 head_() { printf '\n%s\n' "$*"; }
@@ -148,9 +149,22 @@ else
             *Desktop*) is_docker_desktop="yes" ;;
         esac
     else
-        bad "Docker $docker_ver is installed but the daemon is not reachable."
-        info "Start Docker and run this check again. You may also need to add yourself"
-        info "to the docker group: sudo usermod -aG docker \$USER"
+        # Not a pipe into grep: pipefail would return docker's failure, not grep's match.
+        docker_err="$(docker info 2>&1)"
+        case "$docker_err" in
+            *"permission denied"*)
+                bad "Docker $docker_ver is running, but this user is not allowed to reach it."
+                info "Add yourself to the docker group, then log out and back in:"
+                info "  sudo usermod -aG docker \$USER"
+                info "Your groups are set when you log in, so this check keeps failing until"
+                info "you do. Opening a new terminal is not enough. If you would rather not"
+                info "log out yet, 'newgrp docker' fixes the shell you are in."
+                ;;
+            *)
+                bad "Docker $docker_ver is installed but the daemon is not reachable."
+                info "Start Docker, then run this check again."
+                ;;
+        esac
     fi
 
     raw="$(docker compose version --short 2>/dev/null || echo '')"
@@ -299,7 +313,11 @@ case "$verdict" in
         ;;
     full)
         ok "Docker and the host network-shaping checks passed."
-        info "Review any warnings above and run the container test below."
+        if [ "$warn_count" -gt 0 ]; then
+            info "Review the warnings above, then run the container test below."
+        else
+            info "Run the container test below to confirm it from inside a container."
+        fi
         [ -n "$shaping_note" ] && warn "One setup step first: $shaping_note"
         ;;
     egress-only)
