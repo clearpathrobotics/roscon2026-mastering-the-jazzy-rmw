@@ -84,11 +84,11 @@ jobs:
 
       - name: Apply and clear a NetEm profile
         run: |
-          scripts/workshop netem poor 1
-          status="$(scripts/workshop status)"
+          scripts/workshop -t flat netem poor 1
+          status="$(scripts/workshop -t flat netem)"
           printf '%s\n' "$status"
-          grep -Eq '^mock-robot-1[[:space:]].*netem' <<<"$status"
-          scripts/workshop netem clear 1
+          grep -Eq '^mock-robot-1[[:space:]].*delay' <<<"$status"
+          scripts/workshop -t flat netem clear 1
 
       - name: Collect logs on failure
         if: failure()

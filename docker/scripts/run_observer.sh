@@ -137,9 +137,9 @@ capture_retrigger() {
 perms_watch() {  # <rmw label>
     local label="$1"
     while :; do
-        chmod 644 "$CAPTURES/live_${label}"_*.pcap "$CAPTURES/stream_${label}.pcap" 2>/dev/null || true
-        chown "${HOST_UID}:${HOST_GID:-$HOST_UID}" \
-            "$CAPTURES/live_${label}"_*.pcap "$CAPTURES/stream_${label}.pcap" 2>/dev/null || true
+        chmod 664 "$CAPTURES/live_${label}"_*.pcap "$CAPTURES/stream_${label}.pcap" 2>/dev/null || true
+        #chown "${HOST_UID}:${HOST_GID:-$HOST_UID}" \
+        #    "$CAPTURES/live_${label}"_*.pcap "$CAPTURES/stream_${label}.pcap" 2>/dev/null || true
         sleep 2
     done
 }
@@ -147,9 +147,9 @@ perms_watch() {  # <rmw label>
 capture_finalize_perms() {  # <rmw label>: one last ownership pass after the watcher stops
     local label="$1"
     [[ -n "${HOST_UID:-}" ]] || return 0
-    chmod 644 "$CAPTURES/live_${label}"_*.pcap "$CAPTURES/stream_${label}.pcap" 2>/dev/null || true
-    chown "${HOST_UID}:${HOST_GID:-$HOST_UID}" \
-        "$CAPTURES/live_${label}"_*.pcap "$CAPTURES/stream_${label}.pcap" 2>/dev/null || true
+    chmod 664 "$CAPTURES/live_${label}"_*.pcap "$CAPTURES/stream_${label}.pcap" 2>/dev/null || true
+    #chown "${HOST_UID}:${HOST_GID:-$HOST_UID}" \
+    #    "$CAPTURES/live_${label}"_*.pcap "$CAPTURES/stream_${label}.pcap" 2>/dev/null || true
 }
 
 # Signal a recorded pid only if it is still the program we started (its comm still

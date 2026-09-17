@@ -28,7 +28,7 @@ LAB2="$REPO/lab2-on-the-wire"
 NETEM="$LAB2/scripts/netem_profile.sh"
 RAW="$LAB2/captures/fixtures-raw"        # scratch, gitignored with the rest of captures/
 OUT="$HERE/fixtures"                     # committed
-IMAGE=roscon2026-jazzy-rmw:webshark
+IMAGE=ghcr.io/clearpathrobotics/roscon2026-mastering-the-jazzy-rmw:webshark-latest
 DDS_SUBNET='172\.31\.0\.'
 
 # Per-file and total ceilings, checked by `trim`. Discovery fixtures land at 66-373 KB. The
