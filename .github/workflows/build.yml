@@ -191,7 +191,6 @@ jobs:
           docker buildx bake --allow=fs.read=../mock_robot_ws -f docker-bake.hcl \
             --push \
             --provenance mode=max \
-            --sbom true \
             --set '*.cache-from=type=gha' \
             --set '*.cache-to=type=gha,mode=max' \
             default
