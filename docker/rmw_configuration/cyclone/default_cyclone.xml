@@ -1,0 +1,16 @@
+<CycloneDDS>
+  <Domain id="any">
+    <General>
+      <!-- Default Cyclone DDS profile: multicast discovery with no interface
+           pinning. Cyclone autodetermines the network interface. Use this on a
+           flat network where every participant shares one broadcast domain.
+           The per-node profiles (mock-robot-1.xml, etc.) instead pin the
+           NetworkInterface to the shared mock-b0 address for the star topology. -->
+      <AllowMulticast>true</AllowMulticast>
+    </General>
+    <Discovery>
+      <ParticipantIndex>auto</ParticipantIndex>
+      <MaxAutoParticipantIndex>120</MaxAutoParticipantIndex>
+    </Discovery>
+  </Domain>
+</CycloneDDS>

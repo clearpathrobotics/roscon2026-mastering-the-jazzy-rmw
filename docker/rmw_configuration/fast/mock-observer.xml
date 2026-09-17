@@ -1,0 +1,39 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<profiles xmlns="http://www.eprosima.com/XMLSchemas/fastRTPS_Profiles">
+
+  <!-- `profile mock` star topology: the only bridge common to the observer
+       and both robots is mock-b0 (172.30.10.0/24). Docker does not put that
+       bridge on the same NIC in every container, so leaving the interface
+       unset lets Fast DDS bind to a point-to-point bridge and the observer
+       never discovers the robots. Whitelist this container's exact mock-b0
+       address (statically assigned in mock.yml). Analogous to
+       cyclone/mock-observer.xml's <NetworkInterface>. -->
+  <transport_descriptors>
+    <transport_descriptor>
+      <transport_id>udp_mock_b0</transport_id>
+      <type>UDPv4</type>
+      <interfaceWhiteList>
+        <address>172.30.10.20</address>
+      </interfaceWhiteList>
+    </transport_descriptor>
+  </transport_descriptors>
+
+  <participant profile_name="default_participant" is_default_profile="true">
+    <rtps>
+      <userTransports>
+        <transport_id>udp_mock_b0</transport_id>
+      </userTransports>
+      <useBuiltinTransports>false</useBuiltinTransports>
+      <builtin>
+        <discovery_config>
+          <discoveryProtocol>SIMPLE</discoveryProtocol>
+          <EDP>SIMPLE</EDP>
+          <leaseDuration>
+            <sec>DURATION_INFINITY</sec>
+          </leaseDuration>
+        </discovery_config>
+      </builtin>
+    </rtps>
+  </participant>
+
+</profiles>

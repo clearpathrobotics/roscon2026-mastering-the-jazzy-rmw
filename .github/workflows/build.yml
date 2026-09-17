@@ -1,0 +1,197 @@
+name: Build
+
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - 'docker/ubuntu-headless/**'
+      - 'docker/rmw_configuration/**'
+      - 'docker/docker-compose.yml'
+      - 'docker/docker-bake.hcl'
+      - 'docker/.dockerignore'
+      - 'mock_robot_ws/src/**'
+      - '.github/workflows/build.yml'
+  release:
+    types: [published]
+
+env:
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v7
+      - uses: docker/setup-buildx-action@v4
+      - name: Validate bake file
+        working-directory: docker
+        run: docker buildx bake --print
+
+  build:
+    if: github.event_name != 'release'
+    runs-on: ubuntu-latest
+    needs: validate
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Set up QEMU
+        uses: docker/setup-qemu-action@v4
+        with:
+          platforms: arm64
+
+      - uses: docker/setup-buildx-action@v4
+
+      - name: Build all variants (amd64 + arm64)
+        working-directory: docker
+        run: |
+          docker buildx bake --allow=fs.read=../mock_robot_ws -f docker-bake.hcl \
+            --set '*.cache-from=type=gha' \
+            --set '*.cache-to=type=gha,mode=max' \
+            ubuntu-headless
+
+  smoke-test:
+    runs-on: ubuntu-latest
+    needs: validate
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v7
+      - uses: docker/setup-buildx-action@v4
+      - name: Free disk space
+        uses: jlumbroso/free-disk-space@v1.3.1
+        with:
+          tool-cache: false
+          android: true
+          dotnet: true
+          haskell: true
+          large-packages: false
+          swap-storage: false
+      - name: Load images (amd64)
+        working-directory: docker
+        run: |
+          docker buildx bake --allow=fs.read=../mock_robot_ws -f docker-bake.hcl \
+            --load \
+            --set '*.cache-from=type=gha' \
+            --set '*.platform=linux/amd64' \
+            ubuntu-headless
+      - name: Smoke test ubuntu-headless
+        # tool_check.sh is the same check the labs can run by hand, so CI and a
+        # workshop attendee are looking at one list rather than two.
+        run: |
+          docker run --rm \
+            -v "$PWD/docker/ubuntu-headless/tool_check.sh:/tool_check.sh:ro" \
+            ghcr.io/clearpathrobotics/roscon2026-mastering-the-jazzy-rmw:ubuntu-headless-latest \
+            bash /tool_check.sh
+
+      - name: Talker and listener across two containers
+        # A static package check cannot catch a discovery regression. This runs the
+        # shipped docker-compose.yml example for real, on each RMW in turn.
+        run: |
+          for rmw in rmw_cyclonedds_cpp rmw_fastrtps_cpp rmw_zenoh_cpp; do
+            echo "::group::$rmw"
+            if [[ "$rmw" == rmw_zenoh_cpp ]]; then
+              export COMPOSE_PROFILES=zenoh
+            else
+              unset COMPOSE_PROFILES
+            fi
+            RMW_IMPLEMENTATION=$rmw docker compose -f docker/docker-compose.yml up -d
+            for i in $(seq 1 30); do
+              if docker compose -f docker/docker-compose.yml logs listener 2>&1 | grep -q "I heard"; then
+                echo "$rmw: listener received"; break
+              fi
+              [ "$i" = 30 ] && {
+                echo "$rmw: listener never received"
+                docker compose -f docker/docker-compose.yml logs
+                docker compose -f docker/docker-compose.yml down -v
+                exit 1
+              }
+              sleep 2
+            done
+            docker compose -f docker/docker-compose.yml down -v
+            echo "::endgroup::"
+          done
+
+      - name: Fast DDS SPDP port regression check
+        # For ROS_DOMAIN_ID=25 the RTPS-derived SPDP port is 13650
+        # (PB + DG*N = 7400 + 250*25). If someone re-adds a hardcoded
+        # <port>7400</port> to lab 1's Fast DDS config, this catches it.
+        run: |
+          docker run --rm --network host \
+            -e ROS_DOMAIN_ID=25 -e RMW_IMPLEMENTATION=rmw_fastrtps_cpp \
+            -e FASTRTPS_DEFAULT_PROFILES_FILE=/fastdds.xml \
+            -v "$PWD/docker/rmw_configuration/fast/default_fast.xml:/fastdds.xml:ro" \
+            ghcr.io/clearpathrobotics/roscon2026-mastering-the-jazzy-rmw:ubuntu-headless-latest \
+            bash -c '
+              source /opt/ros/jazzy/setup.bash
+              ros2 run demo_nodes_cpp talker &
+              sleep 4
+              # ss -uln column 4 is Local Address:Port
+              locals=$(ss -uln 2>/dev/null | awk "NR>1 {print \$4}")
+              echo "$locals" | grep -q ":13650$" || { echo "SPDP not on domain-derived port 13650"; echo "$locals"; exit 1; }
+              if echo "$locals" | grep -q ":7400$"; then
+                  echo "SPDP bound to :7400 - domain formula bypassed"; exit 1
+              fi
+              echo "OK: SPDP on :13650, no :7400"
+            '
+
+  release:
+    if: github.event_name == 'release'
+    runs-on: ubuntu-latest
+    needs: smoke-test
+    permissions:
+      contents: read
+      packages: write
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Set up QEMU
+        uses: docker/setup-qemu-action@v4
+        with:
+          platforms: arm64
+
+      - uses: docker/setup-buildx-action@v4
+
+      - name: Log in to GHCR
+        uses: docker/login-action@v4
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Generate build metadata
+        id: meta
+        run: echo "created=$(date -u +%Y-%m-%dT%H:%M:%SZ)" >> "$GITHUB_OUTPUT"
+
+      # Four images across two architectures with SBOM + provenance is far more
+      # than a stock runner's free disk; reclaim space before the push build.
+      - name: Free disk space
+        uses: jlumbroso/free-disk-space@v1.3.1
+        with:
+          tool-cache: false
+          android: true
+          dotnet: true
+          haskell: true
+          large-packages: false
+          swap-storage: false
+
+      - name: Build and push all images
+        working-directory: docker
+        env:
+          REGISTRY: ghcr.io/${{ github.repository_owner }}
+          TAG: ${{ github.ref_name }}
+          SOURCE_URL: https://github.com/${{ github.repository }}
+          REVISION: ${{ github.sha }}
+          VERSION: ${{ github.ref_name }}
+          CREATED: ${{ steps.meta.outputs.created }}
+        run: |
+          docker buildx bake --allow=fs.read=../mock_robot_ws -f docker-bake.hcl \
+            --push \
+            --provenance mode=max \
+            --sbom true \
+            --set '*.cache-from=type=gha' \
+            --set '*.cache-to=type=gha,mode=max' \
+            default

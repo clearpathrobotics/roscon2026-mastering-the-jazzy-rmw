@@ -1,0 +1,25 @@
+// Per-host Zenoh router for the routed shared-medium topology (Lab 3).
+//
+// Every robot and the console runs its own rmw_zenohd. Local ROS nodes connect to
+// THIS router over loopback, so intra-robot traffic (pilot -> twist_mux -> controller)
+// never leaves the container. Each host router then links to the infrastructure router
+// on wifi-ap, so only genuinely remote traffic crosses the shared medium.
+//
+// This mirrors rmw_zenoh's recommended deployment: one router per host. Pointing the
+// ROS nodes straight at a remote router instead puts the robot's own control loop on
+// the wireless link - see exercises/4_repeat_with_zenoh.md.
+{
+  mode: "router",
+  listen: { endpoints: ["tcp/0.0.0.0:7447"] },
+  connect: { endpoints: ["tcp/wifi-ap:7447"] },
+  // Each node sits on its own /24, so multicast scouting cannot reach the AP. Gossip is
+  // off too: otherwise host routers learn about each other and open extra router-to-router
+  // links, which all cross the shaped AP and make the topology non-deterministic.
+  scouting: {
+    multicast: { enabled: false },
+    gossip: { enabled: false },
+  },
+  // ros2_control's pal_statistics publishers request timestamp sequencing.
+  timestamping: { enabled: true },
+  transport: { shared_memory: { enabled: false } },
+}

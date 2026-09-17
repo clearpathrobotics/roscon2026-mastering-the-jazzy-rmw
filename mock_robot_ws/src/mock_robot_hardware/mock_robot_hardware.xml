@@ -1,0 +1,10 @@
+<library path="mock_robot_hardware">
+  <class
+      name="mock_robot_hardware/MockRobotHardware"
+      type="mock_robot_hardware::MockRobotHardware"
+      base_class_type="hardware_interface::SystemInterface">
+    <description>
+      Fake 4-wheel hardware interface for ros2_control testing.
+    </description>
+  </class>
+</library>

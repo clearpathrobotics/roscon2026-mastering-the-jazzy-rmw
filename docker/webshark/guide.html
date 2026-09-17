@@ -1,0 +1,1579 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Webshark field guide</title>
+<link rel="icon" href="favicon.ico">
+<style>
+	:root {
+		--fg: #1c1c1c;
+		--muted: #5a5a5a;
+		--bg: #ffffff;
+		--rule: #d8d8d8;
+		--accent: #1a5490;
+		--code-bg: #f4f4f4;
+		--box-bg: #f7f9fb;
+		--warn-bg: #fff8e6;
+		--warn-rule: #e0b64a;
+	}
+
+	* { box-sizing: border-box; }
+
+	body {
+		margin: 0;
+		background: var(--bg);
+		color: var(--fg);
+		font: 16px/1.6 -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+	}
+
+	#layout { display: flex; align-items: flex-start; max-width: 1400px; margin: 0 auto; }
+
+	/* Sidebar is sticky rather than fixed so it scrolls with a short window instead of
+	   clipping its own tail on a laptop screen. */
+	#toc {
+		position: sticky;
+		top: 0;
+		flex: 0 0 270px;
+		max-height: 100vh;
+		overflow-y: auto;
+		padding: 24px 16px 40px 24px;
+		border-right: 1px solid var(--rule);
+		font-size: 13.5px;
+		line-height: 1.45;
+	}
+	#toc h2 { font-size: 13px; text-transform: uppercase; letter-spacing: .06em; color: var(--muted); margin: 0 0 10px; }
+	#toc ol { list-style: none; margin: 0; padding: 0; }
+	#toc ol ol { padding-left: 14px; margin: 2px 0 6px; }
+	#toc li { margin: 3px 0; }
+	#toc a { color: var(--fg); text-decoration: none; display: block; padding: 2px 0; }
+	#toc a:hover { color: var(--accent); text-decoration: underline; }
+	#toc .sub a { color: var(--muted); font-size: 12.5px; }
+
+	main { flex: 1 1 auto; min-width: 0; padding: 24px 40px 120px; max-width: 860px; }
+
+	h1 { font-size: 30px; margin: 0 0 4px; }
+	h2 { font-size: 23px; margin: 44px 0 12px; padding-top: 10px; border-top: 1px solid var(--rule); }
+	h3 { font-size: 18px; margin: 28px 0 8px; }
+	h4 { font-size: 15.5px; margin: 22px 0 6px; }
+	p, li { max-width: 74ch; }
+
+	code, pre { font-family: ui-monospace, "SF Mono", Menlo, Consolas, monospace; }
+	code { background: var(--code-bg); padding: 1px 4px; border-radius: 3px; font-size: 90%; }
+	pre {
+		background: var(--code-bg);
+		border: 1px solid var(--rule);
+		border-radius: 4px;
+		padding: 12px 14px;
+		overflow-x: auto;
+		font-size: 13.5px;
+		line-height: 1.5;
+	}
+	pre code { background: none; padding: 0; font-size: inherit; }
+
+	table { border-collapse: collapse; margin: 14px 0; font-size: 14.5px; width: 100%; }
+	th, td { border: 1px solid var(--rule); padding: 6px 9px; text-align: left; vertical-align: top; }
+	th { background: var(--code-bg); font-weight: 600; }
+	.tablewrap { overflow-x: auto; }
+
+	figure { margin: 18px 0; }
+	figure img { max-width: 100%; border: 1px solid var(--rule); border-radius: 3px; display: block; }
+	figcaption { font-size: 13.5px; color: var(--muted); margin-top: 6px; }
+
+	.routes { background: var(--box-bg); border: 1px solid var(--rule); border-radius: 5px; padding: 14px 18px; margin: 22px 0 8px; }
+	.routes p { margin: 6px 0; }
+
+	.note { background: var(--warn-bg); border: 1px solid var(--warn-rule); border-radius: 5px; padding: 12px 16px; margin: 18px 0; }
+	.note p:first-child { margin-top: 0; }
+	.note p:last-child { margin-bottom: 0; }
+
+	.stamp { color: var(--muted); font-size: 13.5px; margin: 0 0 18px; }
+
+	.symptom { border-left: 3px solid var(--accent); padding-left: 16px; margin: 26px 0; }
+	.verdict { font-size: 14.5px; color: var(--muted); }
+
+	.exercise { border: 1px solid var(--rule); border-radius: 5px; padding: 14px 18px; margin: 20px 0; }
+	.exercise h3 { margin-top: 0; }
+
+	a { color: var(--accent); }
+	footer { margin-top: 60px; padding-top: 14px; border-top: 1px solid var(--rule); font-size: 13.5px; color: var(--muted); }
+
+	@media (max-width: 900px) {
+		#layout { display: block; }
+		#toc { position: static; max-height: none; border-right: none; border-bottom: 1px solid var(--rule); flex: none; padding: 16px 20px; }
+		main { padding: 20px; }
+	}
+</style>
+</head>
+<body>
+<div id="layout">
+
+<nav id="toc">
+	<h2>Contents</h2>
+	<ol>
+		<li><a href="#custom">1. Why this build is customized</a></li>
+		<li><a href="#why">2. Why look at the wire at all</a></li>
+		<li><a href="#concepts">3. What you are looking at</a>
+			<ol class="sub">
+				<li><a href="#c-basics">3.1 Packet capture basics</a></li>
+				<li><a href="#c-ros2">3.2 How ROS 2 gets onto the wire</a></li>
+				<li><a href="#c-rtps">3.3 RTPS on the wire</a></li>
+				<li><a href="#c-discovery">3.4 Discovery</a></li>
+				<li><a href="#c-qos">3.5 QoS on the wire</a></li>
+				<li><a href="#c-zenoh">3.6 Zenoh is a different model</a></li>
+				<li><a href="#c-compare">3.7 The three RMWs compared</a></li>
+			</ol>
+		</li>
+		<li><a href="#capture">4. Taking a capture</a></li>
+		<li><a href="#diagnose">5. Diagnosing, by symptom</a></li>
+		<li><a href="#defaults">6. Useful defaults</a></li>
+		<li><a href="#limits">7. What the wire will not tell you</a></li>
+		<li><a href="#exercises">8. Try it yourself</a></li>
+		<li><a href="#appendix">Appendix A. What this build adds</a></li>
+		<li><a href="#glossary">Appendix B. Glossary</a></li>
+	</ol>
+</nav>
+
+<main>
+
+<h1>Webshark field guide</h1>
+<p class="stamp">
+	Reading ROS 2 middleware traffic from a packet capture.
+	This build: Wireshark 4.6, zenoh-dissector 1.9.0, RTPS and Zenoh decoding, amd64 and arm64 Linux.
+</p>
+
+<div class="routes">
+	<p><strong>New to packet capture?</strong> Read straight through. Section 3 is the part that
+	makes everything after it legible, and nothing later assumes more than it teaches.</p>
+	<p><strong>Came from the workshop?</strong> You have already seen most of section 3. Skip to
+	<a href="#capture">section 4</a> and come back to section 3 when a term stops you. This guide
+	is deliberately more thorough than the lab was.</p>
+</div>
+
+<p>Everything here works on a capture from your own robot. Numbers quoted as examples are
+measured from named captures, and where something is reasoned rather than measured it says so.</p>
+
+
+<h2 id="custom">1. Why this build is customized</h2>
+
+<p>Stock Webshark is a browser front end for <code>sharkd</code>, the Wireshark engine. It will
+open your capture and decode it, but it knows nothing about ROS 2. For example, it leaves you
+to remember that participant discovery lives at entity id <code>0x000100c2</code> and to type
+that yourself.</p>
+
+<p>This build adds the ROS 2 knowledge: one-click filters for the four things that actually
+answer middleware questions, a badge that names which middleware produced the capture, a
+graph you can read, and a Zenoh dissector that stock Wireshark does not ship. It also fixes
+a handful of upstream bugs that get in the way. <a href="#appendix">Appendix A</a> lists every
+addition, what it is for, and where you see it.</p>
+
+
+<h2 id="why">2. Why look at the wire at all</h2>
+
+<p>Logs tell you what a node believed. A capture tells you what left the machine. When a
+publisher's logs say it is publishing and a subscriber's logs say it is receiving nothing,
+exactly one of them is wrong about the network, and a view of the wire settles it.</p>
+
+<p>Getting that answer costs you nothing on the robot. You do not add a library, change a
+launch file, or restart anything to take a capture, which matters on a robot you did not build
+or one that only misbehaves in the field.</p>
+
+<p>A capture is also just a file. You can take one on a robot today, hand it to somebody else
+next week, and they can answer questions about a machine they have never touched and that may
+no longer be reachable. An MCAP recording travels the same way, and for questions about message
+content it is the better file. But MCAP records messages a node already received, so it cannot
+show you discovery, fragmentation, a retransmission, or the case where nothing arrived at all.
+Those are the middleware questions, and the pcap is the file that answers them.</p>
+
+<p>The capture host and the analysis host do not have to be the same machine. Capture on the
+robot with whatever it already has, copy the file off, and open it wherever you can run this
+image. If you have a robot and a laptop, you almost certainly have somewhere to run it.</p>
+
+
+<h2 id="concepts">3. What you are looking at</h2>
+
+<p>This section is the vocabulary the rest of the guide uses. If you already read packet
+captures, skim 3.1 and start at 3.2.</p>
+
+<h3 id="c-basics">3.1 Packet capture basics</h3>
+
+<p>A <strong>frame</strong> is one unit of data as it appeared on the network, with all of its
+headers. People say <em>packet</em> for the same thing in casual use and this guide does too.
+A capture file is a list of frames with timestamps, in order.</p>
+
+<p>There are two kinds of filter and confusing them wastes a lot of time.</p>
+
+<ul>
+	<li>A <strong>capture filter</strong> decides what gets written to disk. You give it to
+	<code>tcpdump</code> or <code>tshark</code> when you start capturing, and anything it rejects
+	is gone forever. Its syntax is BPF, for example <code>udp port 13650</code>.</li>
+	<li>A <strong>display filter</strong> decides what you are shown out of a file you already
+	have. That is what the box at the top of Webshark takes, and what every preset in this guide
+	uses. Its syntax is Wireshark's own, for example
+	<code>rtps.sm.id == 0x15</code>. Nothing is lost, so you can change it freely.</li>
+</ul>
+
+<p>Prefer a wide capture filter and a narrow display filter. You can always narrow later, and
+you can never widen a capture you already took.</p>
+
+<p>Webshark shows a capture in three areas, the same layout desktop Wireshark uses.</p>
+
+<figure>
+	<img src="guide-assets/panes.png" alt="The packet list, packet detail and packet bytes areas of Webshark">
+	<figcaption>The packet list at the top, the decoded detail tree at the lower left, and the
+	raw bytes at the lower right. Clicking a row in the list fills the other two. Frame 10 here
+	reads <code>DATA_FRAG -&gt; rt/mock_robot_2/…/image_comp/compressed</code>, which is the
+	topic-name resolution described in 3.3: this capture caught discovery, so Wireshark can name
+	the topic a fragment belongs to.</figcaption>
+</figure>
+
+<p>Every field in the detail tree carries a funnel on its right. Clicking it filters the packet
+list to that field's value, which is how you get from one interesting frame to every frame like
+it without typing anything. Ctrl-click opens that filter in a new tab instead.</p>
+
+<p>Taking a capture, rather than reading one, needs a little more vocabulary.</p>
+
+<p>An <strong>interface</strong> is one network connection on the machine, named something like
+<code>eth0</code>, <code>enp3s0</code> or <code>wlan0</code>. You capture on one interface at a
+time, and picking the wrong one is the single most common way to end up with an empty file.
+<strong>Promiscuous mode</strong> asks the interface to hand you frames that were not addressed
+to your machine. Capture tools turn it on by default. On a switched network it buys you less
+than people expect, because the switch will not send you other machines' unicast traffic
+regardless.</p>
+
+<p>Two special cases decide whether traffic is capturable at all. <strong>Loopback</strong> is
+the virtual interface, usually <code>lo</code>, that a machine uses to talk to itself. It is
+capturable, but only if you capture on <code>lo</code> rather than on the real network card.
+<strong>Shared memory</strong> is a transport that skips the network entirely and hands data
+between processes through memory both can see. Middleware uses it for same-host communication
+because it is much faster, and it is <em>not</em> capturable by any packet tool, because the
+data never becomes a packet. If both ends of the conversation you care about are on one
+machine, check this before concluding anything is broken.</p>
+
+<p><strong>Snaplen</strong> is how many bytes of each frame get written. Cutting it makes files
+smaller and is a common piece of advice, and for this work it is bad advice. Topic names live
+in the payload of discovery messages, well past any short snaplen, so a truncated capture can
+tell you that discovery happened while being unable to tell you what was discovered. Capture
+whole frames.</p>
+
+<h3 id="c-ros2">3.2 How ROS 2 gets onto the wire</h3>
+
+<p>ROS 2 does not define a network protocol. It defines an interface, the RMW, and a middleware
+implementation sits behind it and does the actual networking. Swap the implementation and the
+same ROS 2 code produces completely different traffic. The three you are likely to meet on
+Jazzy:</p>
+
+<div class="tablewrap">
+<table>
+	<tr><th>RMW</th><th>Protocol on the wire</th><th>Decoded by</th></tr>
+	<tr><td><code>rmw_cyclonedds_cpp</code></td><td>RTPS over UDP</td><td>Wireshark's built-in <code>rtps</code></td></tr>
+	<tr><td><code>rmw_fastrtps_cpp</code></td><td>RTPS over UDP</td><td>Wireshark's built-in <code>rtps</code></td></tr>
+	<tr><td><code>rmw_zenoh_cpp</code></td><td>Zenoh over TCP, UDP, or QUIC</td><td>the zenoh-dissector plugin in this image, over TCP and UDP only</td></tr>
+</table>
+</div>
+
+<p>Zenoh can also run over QUIC, and this build will not decode that. QUIC encrypts its payload,
+so reading the Zenoh inside it would need the session's TLS keys, and the dissector registers
+only on TCP and UDP port 7447 in any case. On a QUIC capture the frames still dissect as QUIC,
+and the Zenoh inside them stays opaque.</p>
+
+<p>Check which one a machine is using with <code>echo $RMW_IMPLEMENTATION</code>. An unset
+value means the default, which on Jazzy is Fast DDS.</p>
+
+<p><strong>Names get rewritten on the way to the wire.</strong> Under DDS, a ROS 2 topic
+<code>/scan</code> becomes a DDS topic <code>rt/scan</code>. The prefix says which kind of ROS 2
+entity it is: <code>rt/</code> for topics, <code>rq/</code> and <code>rr/</code> for the request
+and reply halves of services. Type names get mangled too, so
+<code>sensor_msgs/msg/LaserScan</code> appears as
+<code>sensor_msgs::msg::dds_::LaserScan_</code>. When you search a capture for a topic name,
+search for the mangled form or search for the bare word without a leading slash.</p>
+
+<p><strong>A ROS 2 node is not exactly a DDS participant.</strong> A participant is the unit
+that owns a network endpoint and announces itself; a process usually has one, and several nodes
+in one process share it. This is why counting participants in a capture gives you a number
+lower than your node count, and why the count is not wrong.</p>
+
+<p><strong>The domain id decides the port numbers</strong>, which is worth knowing because it
+turns a vague question into arithmetic. RTPS computes ports as</p>
+
+<pre><code>multicast discovery:  7400 + 250 * domain
+unicast discovery:    7400 + 250 * domain + 10 + 2 * participant_index</code></pre>
+
+<p>So <code>ROS_DOMAIN_ID=25</code> puts multicast discovery on port 13650 and unicast discovery
+on 13660, 13662, 13664 and upward, one pair per participant on the machine. Two robots that
+cannot see each other and are on different domain ids are talking on different ports entirely,
+and the capture shows that immediately.</p>
+
+<p>These numbers are verified against this repo's own captures rather than quoted from the
+spec: on domain 25, a Fast DDS fleet sends discovery to <code>239.255.0.1:13650</code>, and a
+Cyclone fleet configured without multicast sends to unicast ports 13660 through 13898.</p>
+
+<h3 id="c-rtps">3.3 RTPS on the wire</h3>
+
+<p>RTPS is the protocol both DDS implementations speak. One UDP datagram carries one RTPS
+<strong>message</strong>, and each message carries one or more <strong>submessages</strong>.
+Keep the two apart when you read a count, for the reason section 3.7 measures.</p>
+
+<p>The submessage types you need:</p>
+
+<div class="tablewrap">
+<table>
+	<tr><th>Submessage</th><th>Filter</th><th>What it is</th></tr>
+	<tr><td><code>DATA</code></td><td><code>rtps.sm.id == 0x15</code></td><td>An actual sample. Discovery announcements are also DATA, just on builtin topics.</td></tr>
+	<tr><td><code>DATA_FRAG</code></td><td><code>rtps.sm.id == 0x16</code></td><td>One piece of a sample too big for a single datagram.</td></tr>
+	<tr><td><code>HEARTBEAT</code></td><td><code>rtps.sm.id == 0x07</code></td><td>A reliable writer saying which sequence numbers it currently holds.</td></tr>
+	<tr><td><code>ACKNACK</code></td><td><code>rtps.sm.id == 0x06</code></td><td>A reader replying with what it has and what it is missing.</td></tr>
+	<tr><td><code>GAP</code></td><td><code>rtps.sm.id == 0x08</code></td><td>A writer saying a sequence number is intentionally absent, so stop waiting for it.</td></tr>
+</table>
+</div>
+
+<p><strong>MTU and fragmentation.</strong> Every network link has a maximum transmission unit,
+the largest frame it will carry, typically 1500 bytes on Ethernet. Anything larger has to be
+split. A camera image is far larger, so it goes out as a run of <code>DATA_FRAG</code>
+submessages that the receiver reassembles. The consequence that bites: every fragment must
+arrive for the sample to be usable, so a link losing a small percentage of frames can pass
+short messages perfectly while never completing a long one.</p>
+
+<p>Every writer and reader has a <strong>GUID</strong>, 16 bytes made of a per-participant
+prefix and a per-entity id. Wireshark shows them as <code>rtps.guidPrefix</code> and
+<code>rtps.sm.wrEntityId</code>. The important consequence: <strong>a normal RTPS data packet
+does not contain the topic name.</strong> It contains a writer GUID. The only place a GUID gets
+tied to a topic name is discovery, which is why a capture that missed discovery can show you
+plenty of traffic that you cannot attribute to anything.</p>
+
+<p>There is a direct payoff for capturing discovery, beyond being able to search for a topic.
+Wireshark remembers the GUID-to-topic mapping as it reads the file, so once discovery is in the
+capture it labels <em>later</em> frames with the topic name for you. On a capture that caught
+it, a repair message reads <code>GAP -&gt; rt/parameter_events</code> rather than a bare GUID. On
+a capture that missed it, the same frame is anonymous.</p>
+
+<p>Entity ids below <code>0x000100c2</code> and similar reserved values are builtin endpoints,
+the ones DDS uses to run itself. The three that matter here:</p>
+
+<div class="tablewrap">
+<table>
+	<tr><th>Entity id</th><th>Endpoint</th></tr>
+	<tr><td><code>0x000100c2</code></td><td>participant announcements (SPDP)</td></tr>
+	<tr><td><code>0x000003c2</code></td><td>publication announcements (SEDP, writers)</td></tr>
+	<tr><td><code>0x000004c2</code></td><td>subscription announcements (SEDP, readers)</td></tr>
+</table>
+</div>
+
+<p><strong>Finding a field in the packet tree.</strong> A SEDP or SPDP announcement's payload is
+one <code>DATA</code> submessage whose <code>serializedData</code> holds a flat parameter list,
+not a single struct. Expand <strong>DATA</strong>, then <strong>serializedData</strong>, then
+the inner <code>serializedData:</code> node it contains, and every field arrives as its own
+named row: <code>PID_TOPIC_NAME</code>, <code>PID_RELIABILITY</code>,
+<code>PID_ENDPOINT_GUID</code>, and the rest of whatever that announcement carries. Expand the
+one you want and its value is the row under it: <code>topic</code> under
+<code>PID_TOPIC_NAME</code>, <code>Kind</code> under <code>PID_RELIABILITY</code>. The list
+never nests deeper than that, so the same path finds every parameter.</p>
+
+<p><strong>Reliability, in one paragraph.</strong> A reliable writer numbers its samples and
+keeps them until acknowledged. It periodically sends a HEARTBEAT naming the range it holds.
+Readers reply with ACKNACK saying what they have. If a reader reports a hole, the writer
+resends. So a steady trickle of ACKNACK is the protocol working normally, not a problem, and
+this trips people up constantly. What you want is the subset of ACKNACKs that actually reported
+a gap, and Wireshark computes exactly that as
+<code>rtps.sm.acknack_analysis == 3</code>.</p>
+
+<h3 id="c-discovery">3.4 Discovery</h3>
+
+<p>Nothing in DDS is configured with addresses of peers by default. Participants find each
+other at runtime, in two stages.</p>
+
+<p><strong>SPDP</strong>, participant discovery, is the first stage. Every participant
+periodically announces "I exist, here is my GUID prefix and here is how to reach me". This is
+the bootstrap, so it is sent to a well-known address, and it is best-effort: an announcement
+that gets lost is simply sent again on the next tick.</p>
+
+<p><strong>SEDP</strong>, endpoint discovery, is the second. Once two participants know about
+each other, they tell each other about every writer and reader they own, and <em>these</em>
+messages carry the topic name, the type name and the full QoS. SEDP runs over reliable builtin
+endpoints, which has a practical consequence for filtering: the SEDP entity ids also appear on
+those endpoints' own HEARTBEAT and ACKNACK traffic, so a filter on entity id alone buries the
+announcements under their own bookkeeping. Add <code>rtps.sm.id == 0x15</code> to keep only the
+announcements.</p>
+
+<div class="note">
+	<p><strong>Discovery only happens when participants join.</strong> A capture started on an
+	already-running robot contains no discovery at all, so it has no topic names in it and
+	several of the checks in section 5 return nothing on a robot that is working perfectly.
+	<a href="#capture">Section 4</a> is mostly about avoiding this.</p>
+</div>
+
+<p><strong>Whether discovery uses multicast changes what a capture means.</strong> SPDP is
+normally multicast, to group <code>239.255.0.1</code> on the port from section 3.2. Plenty of
+real deployments turn that off, because Wi-Fi handles multicast badly and many switches and
+cloud networks drop it. The alternative is a static peer list, where each participant is told
+the addresses to contact and sends its announcements to each of them by unicast.</p>
+
+<p>Both arrangements are normal, and telling them apart is easy once you know to look, so it is
+worth doing before you conclude a missing robot means a broken one:</p>
+
+<div class="tablewrap">
+<table>
+	<tr><th>What you see</th><th>What it means</th></tr>
+	<tr><td>SPDP to <code>239.255.0.1</code></td><td>multicast discovery, working</td></tr>
+	<tr><td>no multicast, SPDP unicast to a few fixed addresses</td><td>static peer list, working as configured</td></tr>
+	<tr><td>your own machine sending to <code>239.255.0.1</code> and nothing coming back</td><td>multicast is configured but the network is eating it</td></tr>
+</table>
+</div>
+
+<p>Measured examples of the first two, both from this repo's own fleet on domain 25. Fast DDS
+with default discovery: 295 announcements to <code>239.255.0.1:13650</code>. Cyclone configured
+with <code>AllowMulticast</code> off and a static peer list: zero frames to 13650, and instead
+18583 announcements spread over 120 unicast ports from 13660 to 13898 in 30 seconds.</p>
+
+<p>18583 in half a minute reads like a discovery storm, and it is not one. That fleet sets a
+maximum participant index of 120, and with multicast off each participant unicasts its
+announcement to every candidate participant port on every peer, so one logical announcement
+becomes 120 frames. <strong>A large SPDP count is a property of the discovery configuration
+before it is evidence of anything wrong.</strong></p>
+
+<h3 id="c-qos">3.5 QoS on the wire</h3>
+
+<p>DDS negotiates quality of service per topic, and mismatched settings are a leading cause of
+"they can see each other but no data arrives". The rule is that the writer must offer at least
+what the reader requests. A best-effort writer does not satisfy a reliable reader, so they
+simply never connect, and neither side logs an error by default.</p>
+
+<p>The policies that break things in practice:</p>
+
+<div class="tablewrap">
+<table>
+	<tr><th>Policy</th><th>Values</th><th>Mismatch effect</th></tr>
+	<tr><td>Reliability</td><td>best-effort, reliable</td><td>best-effort writer plus reliable reader never match</td></tr>
+	<tr><td>Durability</td><td>volatile, transient-local</td><td>volatile writer plus transient-local reader never match; also why a late subscriber misses a latched topic</td></tr>
+	<tr><td>History</td><td>keep-last(depth), keep-all</td><td>no match failure, but a shallow depth silently drops samples under load</td></tr>
+	<tr><td>Deadline, liveliness</td><td>durations</td><td>a reader requesting a tighter deadline than the writer offers never matches</td></tr>
+</table>
+</div>
+
+<p><strong>The capture can settle this argument</strong>, because SEDP announcements carry the
+QoS. Filter to SEDP, click an announcement for the topic in question, and read the parameter
+list in the detail pane. You get both sides from one capture: what the writer offered and what
+the reader requested, in their own words, with no need to trust either node's configuration
+files.</p>
+
+<p>This only works if the capture caught discovery. It is the strongest single reason to get
+section 4 right.</p>
+
+<h3 id="c-zenoh">3.6 Zenoh is a different model</h3>
+
+<p><code>rmw_zenoh_cpp</code> is not DDS and shares none of the above. Nothing in this section
+has an RTPS equivalent, and the RTPS presets return zero on a Zenoh capture, correctly.</p>
+
+<p>Zenoh's units are <strong>sessions</strong> rather than participants. A session connects to
+the network in one of three roles: a <strong>router</strong> that forwards, a
+<strong>peer</strong> that talks directly to other peers, or a <strong>client</strong> that
+connects through a router. ROS 2 on Zenoh normally runs a router process,
+<code>rmw_zenohd</code>, with the nodes as clients of it. That means traffic goes to the router
+and back out, so where you capture determines what you see even more than it does with DDS.</p>
+
+<p>Instead of topics, Zenoh has <strong>key expressions</strong>, slash-separated strings that
+support wildcards. ROS 2 builds one per endpoint, and the domain id is the leading field, so a
+key expression starts with the domain rather than the topic. Do not hardcode a leading
+<code>0/</code> when searching; check what domain the robot uses first.</p>
+
+<p><strong>Declare</strong> is the closest thing to discovery. A session declares its key
+expressions once, at session setup, and the router remembers them. The timing catch is sharper
+than SEDP's: because declarations go to the router rather than being re-sent to newcomers,
+starting a new node does <em>not</em> make existing sessions re-declare. Getting them back
+means restarting the router so every session reconnects and declares again.</p>
+
+<p>The fields worth knowing, all leaves rather than the tree nodes above them. A filter on
+<code>zenoh.body.frame</code> matches nothing, because the parent is only a label in the detail
+pane. <code>zenoh.body.frame.sn</code> is a real field. Counts are from
+<code>live_zenoh_00001</code>, one 27 MB capture of a six-session fleet:</p>
+
+<div class="tablewrap">
+<table>
+	<tr><th>Filter</th><th>What it is</th><th>Count</th></tr>
+	<tr><td><code>zenoh</code></td><td>any Zenoh frame, the "is the dissector working" check</td><td>18136</td></tr>
+	<tr><td><code>zenoh.body.init_syn.version</code></td><td>a session opening, first half of the handshake</td><td>6</td></tr>
+	<tr><td><code>zenoh.body.init_ack.zid</code></td><td>the reply, carrying the peer's Zenoh id</td><td>6</td></tr>
+	<tr><td><code>zenoh.body.open_syn.initial_sn</code></td><td>the session opening for data</td><td>6</td></tr>
+	<tr><td><code>zenoh.body.open_ack.initial_sn</code></td><td>the reply that completes setup</td><td>6</td></tr>
+	<tr><td><code>…declare_key_expr.wire_expr</code></td><td>a declaration, Zenoh's discovery. The Declare preset.</td><td>1534</td></tr>
+	<tr><td><code>…push.payload.put.payload</code></td><td>an actual data sample</td><td>16210</td></tr>
+	<tr><td><code>zenoh.body.frame.sn</code></td><td>sequence number, present on nearly every frame</td><td>18070</td></tr>
+	<tr><td><code>zenoh.body.close.reason</code></td><td>a session ending</td><td>6</td></tr>
+</table>
+</div>
+
+<p>The two <code>declare</code> and <code>push</code> filters are abbreviated above. In full they
+are <code>zenoh.body.frame.payload.body.declare.body.declare_key_expr.wire_expr</code> and
+<code>zenoh.body.frame.payload.body.push.payload.put.payload</code>. The dissector exposes 128
+fields in total, and <code>tshark -G fields | grep zenoh</code> lists them.</p>
+
+<p>Those counts are the shape of a healthy session: six opened, six acknowledged, six opened for
+data, six acknowledged again, six closed. What you are reading is the symmetry. An
+<code>init_syn</code> with no matching <code>init_ack</code> is a session that never formed, and
+section 5.10 works through that.</p>
+
+<p>Zenoh's reliable mode here runs over TCP, so repair is TCP's own retransmission rather than
+an application-level message. That is why the Retransmits preset covers both mechanisms in one
+filter. It also means loss hurts Zenoh differently: TCP head-of-line blocks the whole stream
+behind a missing segment, where RTPS over UDP resends just the missing sample.</p>
+
+<h3 id="c-compare">3.7 The three RMWs compared</h3>
+
+<p>Two of the three speak the same protocol, and it is tempting to treat them as
+interchangeable when reading a capture. They are not, in one way that will confuse your counts.</p>
+
+<p><strong>Bundling.</strong> RTPS lets a sender pack several submessages into one datagram, and
+the two implementations do it at completely different rates. Measured on this repo's captures,
+counting how many RTPS vendor ids each frame carries, which is one per bundled message:</p>
+
+<div class="tablewrap">
+<table>
+	<tr><th>Stack</th><th>One message per frame</th><th>Two or more</th><th>Bundled</th></tr>
+	<tr><td>Cyclone</td><td>7514</td><td>18656</td><td><strong>70%</strong></td></tr>
+	<tr><td>Fast DDS</td><td>453714</td><td>13266</td><td><strong>2.8%</strong></td></tr>
+</table>
+</div>
+
+<p>So frame counts are not submessage counts, and the gap between them is seven times larger on
+Cyclone. Compare a stack against itself over time rather than against the other stack's
+numbers.</p>
+
+<p>Bundling also affects a filter you will use, because <strong>a Wireshark display filter
+matches fields anywhere in a frame, not within one submessage.</strong> A frame that bundles somebody
+else's DATA with a SEDP HEARTBEAT matches the SEDP filter without containing an announcement.
+Measured at 8 frames out of 824 on Cyclone and 0 on Fast DDS. Wireshark has no way to scope a
+filter to one submessage, so this is a floor on precision rather than a bug, and at roughly 1%
+it does not change any conclusion. Know it before you go hunting for the discrepancy.</p>
+
+<div class="tablewrap">
+<table>
+	<tr><th></th><th>Cyclone</th><th>Fast DDS</th><th>Zenoh</th></tr>
+	<tr><td>Protocol</td><td>RTPS/UDP</td><td>RTPS/UDP</td><td>Zenoh/TCP, UDP or QUIC</td></tr>
+	<tr><td>Vendor id in capture</td><td><code>0x0110</code></td><td><code>0x010f</code></td><td>n/a</td></tr>
+	<tr><td>Discovery</td><td>SPDP then SEDP</td><td>SPDP then SEDP</td><td>Declare, once, to the router</td></tr>
+	<tr><td>Replaying discovery</td><td colspan="2">start a node, or <code>ros2 topic list --no-daemon</code></td><td>restart the router</td></tr>
+	<tr><td>Repair shows as</td><td colspan="2">ACKNACK asking for a resend</td><td>TCP retransmission</td></tr>
+	<tr><td>Bundles submessages</td><td>heavily</td><td>rarely</td><td>n/a</td></tr>
+</table>
+</div>
+
+
+<h2 id="capture">4. Taking a capture</h2>
+
+<p>This section is the one that decides whether the rest of the guide can help you. Almost every
+unusable capture is unusable for a reason listed here.</p>
+
+<p>Everything up to "Get the file to Webshark" applies wherever you are capturing. It is written
+for the common case, where Webshark runs on your laptop and the robot is a separate machine you
+take a capture on and copy the file off. If Webshark is running on the robot itself, all of it
+still applies. <a href="#capture-onboard">When Webshark runs on the robot itself</a>, at the end,
+gives the commands that replace the last two steps.</p>
+
+<h3>Pick the interface by address, not by name</h3>
+
+<p>List what the machine has:</p>
+
+<pre><code>ip -o -4 addr show</code></pre>
+
+<p>You want the interface carrying the address that the robot's ROS 2 traffic uses. Do not
+assume a name. On this repo's own fleet the same logical network was <code>eth3</code> in one
+bring-up and <code>eth2</code> in the next, and a guide that told you to capture on
+<code>eth3</code> would have produced an empty file the second time.</p>
+
+<p>If you are unsure, capture a few seconds on each candidate and count what you got. That is
+faster than reasoning about it, and it is exactly what exercise 1 has you do.</p>
+
+<div class="note">
+	<p><strong>Traffic between two processes on the same machine may never reach any interface.</strong>
+	DDS uses shared memory or loopback for same-host communication. If the publisher and the
+	subscriber are both on the robot, a capture on <code>eth0</code> will not see their traffic no
+	matter how long you run it, and nothing is broken. Capture on <code>lo</code> for the loopback
+	case; shared memory is invisible to packet capture entirely and needs a different tool.</p>
+</div>
+
+<h3>Start the capture before the ROS stack</h3>
+
+<p>This is the one that silently ruins captures. Discovery only happens when participants join,
+so if the stack is already running when you start capturing, you get traffic with no topic
+names in it. The file looks perfectly healthy. Every discovery check in section 5 returns
+nothing, and the natural conclusion is that the filter is wrong.</p>
+
+<p>Two reliable orders of operations, in preference order:</p>
+
+<ol>
+	<li><strong>Capture first, then start the stack.</strong> Start the capture, wait a couple of
+	seconds, then bring up ROS 2. Everything is in the file.</li>
+	<li><strong>Capture, then make discovery happen again.</strong> If you cannot restart the
+	stack, start the capture and then force a re-announcement. On DDS, starting any new node does
+	it, because the builtin discovery endpoints are reliable and existing participants re-send
+	their announcements to the newcomer. On Zenoh, restart <code>rmw_zenohd</code>, because
+	starting a node will not make existing sessions re-declare.</li>
+</ol>
+
+<div class="note">
+	<p><strong><code>ros2 topic list</code> on its own does not work for this</strong>, even though
+	it is the obvious thing to try. The ROS 2 CLI runs a background daemon that caches the graph
+	and answers from memory, putting nothing on the network. Use:</p>
+	<pre><code>ros2 topic list --no-daemon</code></pre>
+	<p>Measured on the same fleet and interface, minutes apart: plain <code>ros2 topic list</code>
+	produced 462 participant announcements and <strong>zero</strong> endpoint announcements,
+	while <code>--no-daemon</code> produced 559 and <strong>1515</strong>. Either
+	<code>--no-daemon</code>, or run <code>ros2 daemon stop</code> first, or just start a real node.</p>
+</div>
+
+<h3>Take the capture</h3>
+
+<p>Use whichever tool the robot already has. <code>tcpdump</code> is on almost everything;
+<code>tshark</code> and <code>dumpcap</code> often are not, and you do not need either on the
+robot because the decoding happens later, wherever you open the file. If you do have a choice,
+<code>dumpcap</code> is the one built purely to write frames to disk, with the least overhead of
+the three, so prefer it on a heavily-loaded robot or a high-rate capture. <code>tshark</code>
+does more work per packet in exchange for printing a decoded line to the terminal as it captures,
+useful when you want to see that traffic is flowing before you go looking at the file. Both are
+still just writing standard pcap, so the choice does not affect anything you see later in
+Webshark.</p>
+
+<pre><code># tcpdump, the one most likely to already be there
+sudo tcpdump -i eth0 -s 0 -w /tmp/robot.pcap
+
+# dumpcap, lowest overhead, if you have it and the robot is under load
+sudo dumpcap -i eth0 -s 0 -w /tmp/robot.pcap
+
+# tshark, if you want to watch decoded packets scroll by while it records
+sudo tshark -i eth0 -s 0 -w /tmp/robot.pcap</code></pre>
+
+<p><code>-s 0</code> means capture whole frames. It is the default on current versions of both
+tools, and it is written out here because a truncated capture loses the topic names in section
+5 and the loss is not obvious when you look at the file.</p>
+
+<p>Stop with Ctrl-C. Sixty seconds that includes the stack starting is worth more than an hour
+that does not.</p>
+
+<h4>Privileges</h4>
+
+<p>Capturing needs elevated privileges. <code>sudo</code> is the direct answer. If you would
+rather not, grant the capability once to the binary instead:</p>
+
+<pre><code>sudo setcap cap_net_raw,cap_net_admin+eip $(which tcpdump)</code></pre>
+
+<p>Either way, check who owns the resulting file, because Webshark runs as a non-root user and
+cannot open a file it is not allowed to read. Ownership varies by tool and distribution:
+<code>tcpdump</code> on Ubuntu drops privileges and writes as the <code>tcpdump</code> user
+mode 0644, while <code>tshark</code> run under <code>sudo</code> writes as root mode 0600. If a
+file appears in the list and refuses to load, this is the first thing to check:</p>
+
+<pre><code>ls -l /tmp/robot.pcap
+sudo chmod 644 /tmp/robot.pcap</code></pre>
+
+<h4>Keeping the file a sensible size</h4>
+
+<p>Middleware traffic is heavy, especially with cameras. Options, in order of how much they cost
+you:</p>
+
+<ul>
+	<li><strong>Stop sooner.</strong> Free, and usually sufficient.</li>
+	<li><strong>Limit by size or time:</strong> <code>-W 1 -C 100</code> on <code>tcpdump</code>
+	caps a file at 100 MB. <code>-a duration:60</code> on <code>tshark</code> stops after a
+	minute.</li>
+	<li><strong>Capture-filter out the bulk.</strong> If the camera is drowning everything, exclude
+	its port. Be careful: this is the filter you cannot undo later.</li>
+	<li><strong>Do not use a rolling ring buffer</strong> if you care about discovery. A ring
+	that keeps the last N files deletes the first file, and the first file is the one with all the
+	discovery in it. This is not hypothetical: two of this repo's own rotated captures hold 2337
+	and 767 participant announcements and zero endpoint announcements, because the window that had
+	them was recycled.</li>
+</ul>
+
+<h3>Get the file to Webshark</h3>
+
+<pre><code>scp robot:/tmp/robot.pcap ./captures/</code></pre>
+
+<p>Then drop it in the directory Webshark serves and it appears in the file list. There is no
+import step and no conversion. <code>.pcap</code> and <code>.pcapng</code> both work.</p>
+
+<figure>
+	<img src="guide-assets/filelist.png" alt="Webshark's capture file list, newest first">
+	<figcaption>The file list, sorted newest first. Click a file to open it.</figcaption>
+</figure>
+
+<h3 id="capture-onboard">When Webshark runs on the robot itself</h3>
+
+<p>Then the capture happens inside Webshark's own container and there is no file to copy. Make
+the directory before the first <code>up</code>, not after:</p>
+
+<pre><code>mkdir -p captures
+docker compose -f webshark.robot.yml up -d</code></pre>
+
+<p>Compose creates a missing bind mount as root, the container runs as UID 1000, and the capture
+then fails on <code>Permission denied</code> long after you have chosen an interface.
+<code>mkdir -p</code> will not repair that afterwards, because by then the directory exists. Fix
+it with <code>sudo chown -R "$(id -u):$(id -g)" captures</code>.</p>
+
+<div class="note">
+	<p><strong><code>network_mode: host</code> is what makes this work at all</strong>, and why the
+	container sees the robot's real interfaces instead of a private one of its own. On a bridge
+	network the capture still succeeds and still writes a file, and that file holds the docker
+	bridge and none of your robot's traffic. Measured on one machine, the same image saw that
+	machine's own wired and wireless addresses with host networking, and only
+	<code>eth0 172.17.0.2/16</code> bridged. Check it before you trust a capture:</p>
+	<pre><code>docker inspect -f '{{.HostConfig.NetworkMode}}' webshark</code></pre>
+	<p>It has to print <code>host</code>. Whether the container is allowed to record at all is a
+	separate question, covered in <a href="#appendix">Appendix A</a>. <code>webshark.yml</code>
+	deliberately cannot.</p>
+</div>
+
+<p>Pick the interface by address as above, then capture. Timestamp the filename, or your second
+capture quietly overwrites your first:</p>
+
+<pre><code>docker exec webshark ip -o -4 addr show
+docker exec -it webshark tshark -i eth0 -s 0 -w /captures/robot-$(date +%Y%m%dT%H%M%S).pcap</code></pre>
+
+<div class="note">
+	<p><strong>The <code>-it</code> is not optional.</strong> Without it, Ctrl-C kills the
+	<code>docker</code> client and leaves tshark running inside the container, writing to a file
+	nobody is reading, and the image carries no <code>pkill</code> to recover with. Measured: the
+	TTY-less form left a capture running that reached 6.5 MB before it was noticed, while
+	<code>-it</code> stopped on the first Ctrl-C and closed the file cleanly. For an unattended
+	capture, use <code>-a duration:120</code> instead.</p>
+</div>
+
+<p><code>/captures</code> is the directory the viewer serves, so the file is in the list on the
+next reload. It arrives mode 0600 owned by UID 1000, which Webshark can read and another user on
+the robot may not, so <code>chmod 644</code> applies as above if you later want to copy it off
+the robot.</p>
+
+<p><code>capture-robot.sh</code> does all of this, refuses a container that cannot record or is
+on the wrong network, and samples every candidate interface so you can see which one is carrying
+traffic. It ships inside the image, since the repository it came from may not be on the
+robot:</p>
+
+<pre><code>docker cp webshark:/usr/local/bin/capture-robot.sh .
+./capture-robot.sh</code></pre>
+
+
+<h2 id="diagnose">5. Diagnosing, by symptom</h2>
+
+<p>Start from what you observed, not from what you suspect. Each entry below names the check,
+what a healthy answer looks like, and what the broken answer looks like.</p>
+
+<p>The five preset buttons appear above the packet list. The radio pair decides what a click
+does: <strong>Packet list</strong> narrows the list to matching frames, <strong>Rate graph</strong>
+plots the same filter over time. Every preset works in both modes.</p>
+
+<figure>
+	<img src="guide-assets/presets.png" alt="The RMW preset row with its mode toggle">
+	<figcaption>The presets. Hovering any of them explains what it matches and what an empty
+	result means.</figcaption>
+</figure>
+
+<p>Before anything else, read the badge next to the frame count. It names the middleware that
+produced the capture and counts repair events, which tells you which half of this section
+applies.</p>
+
+<figure>
+	<img src="guide-assets/badge.png" alt="The capture summary badge naming the RMW and repair count">
+	<figcaption>The capture badge. Presets the capture cannot answer are dimmed, so the RTPS
+	presets fade on a Zenoh capture. Dimmed buttons still work.</figcaption>
+</figure>
+
+<div class="note">
+	<p><strong>Calibrate before you conclude.</strong> A first look at RTPS is alarming: constant
+	heartbeats, constant acknowledgements, a repair count that is not zero. Nearly all of that is
+	the protocol working. Each entry below says what normal looks like. Read that before deciding
+	something is wrong.</p>
+</div>
+
+<div class="symptom">
+<h3>5.1 Nothing on the wire at all</h3>
+<p>The capture is empty or nearly so.</p>
+<p><strong>Check:</strong> open it and look at the frame count.</p>
+<p><strong>Healthy:</strong> thousands of frames for even a short capture on an active robot.</p>
+<p><strong>Broken:</strong> single digits. Measured example: capturing on the wrong interface of
+a machine whose fleet was fully active produced <strong>1 packet in 28 seconds</strong>, against
+906 on the correct interface over the same window.</p>
+<p><strong>Also broken, and harder to spot:</strong> plenty of frames, and none of them yours.
+<code>nothing-on-wire.pcap.gz</code> holds 24991 RTPS frames from a busy fleet and not one
+announcement of the topic a healthy publisher was producing at 10&nbsp;Hz throughout, because
+that node was bound to loopback. A full capture is not evidence that your traffic is in it, so
+filter for your own topic name before concluding the network is at fault.</p>
+<p class="verdict">Almost always the capture, not the robot. Work through, in order: wrong
+interface (3.1 and 4), both endpoints on the same host so traffic never reaches an interface
+(4), or the capture filter excluded everything. Confirm the robot is actually publishing with
+<code>ros2 topic hz</code> before suspecting the network.</p>
+</div>
+
+<div class="symptom">
+<h3>5.2 Two nodes never find each other</h3>
+<p>Both processes are running, neither sees the other.</p>
+<p><strong>Check:</strong> the <strong>SPDP</strong> preset, or <strong>Zenoh Declare</strong> on
+Zenoh.</p>
+<p><strong>Healthy:</strong> announcements from every machine you expect, arriving repeatedly.
+Measured on a healthy three-robot fleet in 30 seconds: 148, 104 and 99 announcements from the
+three robots and 11 from the fourth machine.</p>
+<p><strong>Broken:</strong> announcements from some machines and none from the one that is
+missing. Two measured shapes. On <code>domain-mismatch.pcap.gz</code>, two participants
+announce steadily on ports 17900 and 26650, which are domains 42 and 77, and
+<code>rtps.sm.id == 0x06 &amp;&amp; (udp.dstport == 17900 || udp.dstport == 26650)</code>
+returns nothing: neither participant ever matched anyone, so neither had anyone to acknowledge.
+Scope that filter to the ports before you read it, because the same file carries 993 ACKNACKs
+from the healthy fleet sharing the wire, and a file-wide count would tell you the opposite of
+what is true. On
+<code>node-death.pcap.gz</code>, one robot stops announcing at 17.5&nbsp;s and another at
+38.0&nbsp;s while a third continues to 67.5&nbsp;s.</p>
+<p class="verdict">If a machine never appears, it is not being seen by anybody, whatever its own
+logs say. Check in this order: same <code>ROS_DOMAIN_ID</code> on both, since a different domain
+means different ports entirely (3.2); same RMW on both, since Zenoh and DDS cannot talk to each
+other at all; then routing and firewalls between the two addresses. If the missing machine is
+sending announcements that you can see from its own side but nobody receives them, go to
+5.3.</p>
+<p class="verdict">A node that has gone does not say so. Neither departure in
+<code>node-death.pcap.gz</code> produced a dispose or an unregister, and one of them was a clean
+SIGTERM: <code>rtps.param.status_info</code> matches nothing anywhere in the file. Peers learn
+of a departure from the silence, and how long that takes is the participant lease rather than a
+message, so a robot that vanished a moment ago and one that vanished a minute ago look
+identical until the lease expires.</p>
+</div>
+
+<div class="symptom">
+<h3>5.3 Multicast is being dropped</h3>
+<p>Discovery works between machines on a wired switch and fails over Wi-Fi, or fails after a
+network change, or works locally and not across a subnet.</p>
+<p><strong>Check:</strong> the <strong>SPDP</strong> preset, then look at the destination
+addresses in the packet list.</p>
+<p><strong>Healthy, two shapes, both fine:</strong> announcements to <code>239.255.0.1</code>
+means multicast discovery is working. Announcements only to a handful of specific addresses
+means the deployment uses a static peer list, which is a deliberate configuration and not a
+fault. Measured example of each on domain 25: 295 frames to <code>239.255.0.1:13650</code> from
+a Fast DDS fleet, and zero multicast with 18583 unicast frames across ports 13660 to 13898 from
+a Cyclone fleet configured without multicast.</p>
+<p><strong>Broken:</strong> your own machine sending to <code>239.255.0.1</code> and nothing
+arriving back from anyone else. Measured on <code>multicast-blocked.pcap.gz</code>: 162 frames
+into the group, 73 of them from one robot, and zero from a second robot configured identically
+whose announcements are being discarded before they reach the wire.</p>
+<p class="verdict">That last shape means multicast is configured but the network is discarding
+it, which is common on Wi-Fi, on many managed switches, and on most cloud networks. The fix is
+to stop relying on it: configure a static peer list, which is what the second healthy shape
+above is. Cyclone calls this <code>Peers</code> with <code>AllowMulticast</code> off, Fast DDS
+calls it initial peers, and Zenoh sidesteps it by connecting to a router address.</p>
+<p class="verdict"><em>All three shapes are measured. An earlier version of this section could not
+induce the broken one, for a reason worth repeating: the test fleet runs
+<code>AllowMulticast=false</code> with a static peer list, so it puts nothing on
+<code>239.255.0.1</code> at all and there was nothing to block. Turn multicast on first, then
+drop the group on one node's egress.</em></p>
+</div>
+
+<div class="symptom">
+<h3>5.4 The discovery group is carrying all the traffic</h3>
+<p>The link is busy on a fleet that is barely publishing, nodes are slow to start, or a Wi-Fi
+access point is struggling under a load nobody can account for.</p>
+<p><strong>Check:</strong> filter <code>ip.dst == 239.255.0.1</code> and compare the result
+against the total frame count in the badge.</p>
+<p><strong>Healthy:</strong> discovery is a small share of the bus.
+<code>healthy-fastdds.pcap.gz</code> puts 123 frames on the group out of 5928 over
+12.1&nbsp;seconds, so about 10 multicast frames a second and 2% of the capture.</p>
+<p><strong>Broken:</strong> <code>multicast-storm.pcap.gz</code> holds 3293 frames over
+29.1&nbsp;seconds and every one of them is addressed to <code>239.255.0.1</code>. That is 113
+frames a second and a megabyte of announcements, with no user data anywhere in the file.
+Narrowing to SPDP with <code>rtps.sm.wrEntityId == 0x000100c2</code> leaves 1604 of those
+frames, carrying 18 distinct participant GUID prefixes from a single host and peaking at 64
+announcements in one second.</p>
+<p class="verdict">Two things multiply the announcement rate and the capture separates them.
+Count the distinct GUID prefixes on SPDP. A large number means too many participants, which
+usually means a process per node where a composed container would do. If the prefix count is
+small and the rate is still high, the announcement interval has been shortened instead. The
+fixture above sets Cyclone's <code>SPDPInterval</code> to 200ms across twelve publishers, which
+is the shape you get from an interval tuned down to make discovery feel faster during
+development and then left in place. Each announcement is multicast once, so the wire cost grows
+with the participant count, but every participant processes every other participant's
+announcement, and that cost grows faster than the fleet does.</p>
+</div>
+
+<div class="symptom">
+<h3>5.5 The capture has no discovery in it</h3>
+<p>Every discovery check returns nothing, but there is plenty of other traffic.</p>
+<p><strong>Check:</strong> <strong>SPDP</strong> and <strong>SEDP</strong>, or
+<strong>Zenoh Declare</strong>.</p>
+<p><strong>Healthy:</strong> both return frames. On a capture that caught a Zenoh handshake:
+18136 Zenoh frames of which 1534 are declarations.</p>
+<p><strong>Broken:</strong> traffic present, discovery absent. Measured on a Zenoh capture taken
+on an already-running fleet: 22258 Zenoh frames and <strong>zero</strong> declarations. The
+dissector is working. There is nothing to find.</p>
+<p class="verdict">This is a capture problem and not a robot problem, and it is the most common
+one. Recapture per section 4: start the capture before the stack, or force discovery again with
+<code>ros2 topic list --no-daemon</code> on DDS, or by restarting <code>rmw_zenohd</code> on
+Zenoh. Note the sub-case where SPDP is present and SEDP is not: participants are announcing but
+no endpoint announcements were captured, so you know who is on the network but not what they
+publish.</p>
+</div>
+
+<div class="symptom">
+<h3>5.6 They discover each other but a topic never arrives</h3>
+<p>The subscriber is connected to something and receives nothing.</p>
+<p><strong>Check:</strong> the <strong>SEDP</strong> preset, then look for the topic by name. It
+will be prefixed, so <code>/scan</code> appears as <code>rt/scan</code>.</p>
+<p><strong>Healthy:</strong> an announcement from the publisher's side carrying the topic name.
+Measured: 11606 endpoint announcements on a Fast DDS capture and 824 on a Cyclone one, both
+covering a full fleet startup.</p>
+<p><strong>Broken:</strong> the topic never appears in any announcement.</p>
+<p class="verdict">If the topic was never announced, the publisher never created it, so the
+problem is in the node rather than the network. Check the node actually reached the line that
+creates the publisher, and check the topic name including any namespace remapping. If the topic
+<em>is</em> announced and data still does not flow, go to 5.7.</p>
+</div>
+
+<div class="symptom">
+<h3>5.7 The topic is advertised and still nothing flows</h3>
+<p>Both sides are up, the topic exists on both, no messages arrive. <code>ros2 topic list</code>
+shows it and <code>ros2 topic echo</code> hangs.</p>
+<p><strong>Check:</strong> <strong>SEDP</strong>, click the announcement for that topic, and read
+the QoS in the detail pane. Do it for both the writer and the reader announcement.</p>
+<p><strong>Healthy:</strong> the writer offers at least what the reader requests.</p>
+<p><strong>Broken:</strong> a best-effort writer against a reliable reader, or a volatile writer
+against a transient-local reader. They never match, and by default neither side says so.
+Measured on <code>qos-mismatch.pcap.gz</code>. Filter
+<code>rtps.param.topicName == "rt/fixture_qos"</code> for 33 announcements and read
+<code>rtps.reliability_kind</code> on each. One of them comes from 172.30.10.11 with entity id
+<code>0x000003c2</code>, a writer, and reads <code>0x00000001</code>, which is best-effort.
+Thirty come from 172.30.10.20 with entity id <code>0x000004c2</code>, readers, and read
+<code>0x00000002</code>, which is reliable. That is the mismatch, both sides of it, in one file.
+The remaining two frames bundle several endpoints into one announcement and carry a value per
+endpoint, which is why a naive tally comes to more than 33. The field is
+<code>rtps.reliability_kind</code> rather than anything under <code>rtps.param.</code>, which is
+where you would look for it.</p>
+<p class="verdict">This is the case the wire settles better than anything else, because you read
+both sides' actual negotiated intent out of one file rather than trusting two configuration
+files. Fix by aligning the profiles. Sensor data is conventionally best-effort and a reliable
+subscriber to it is a common mistake. See 3.5 for which policies can fail to match.</p>
+<p class="verdict"><em>Measured on a purpose-built mismatched pair. The reading procedure is what
+matters and it works on any capture with SEDP in it.</em></p>
+</div>
+
+<div class="symptom">
+<h3>5.8 Data arrives late, in bursts, or with gaps</h3>
+<p>Messages arrive, but jerkily, or the rate is below what the publisher claims.</p>
+<p><strong>Check:</strong> the <strong>Retransmits</strong> preset, in <strong>Rate graph</strong>
+mode so you can see when it happened.</p>
+<p><strong>Healthy:</strong> a low steady count. Measured on a healthy Cyclone capture: 1519
+ACKNACKs in total, of which only <strong>181</strong> actually reported a gap. The other 1338
+are the protocol acknowledging normal receipt. On a healthy Zenoh capture: 3 TCP
+retransmissions in 23000 frames.</p>
+<p><strong>Broken:</strong> a spike that lines up in time with the dropout you observed. Measured on <code>reliable-vs-besteffort.pcap.gz</code>, which carries the same camera frames on a reliable and a best-effort topic under one impairment: 48 HEARTBEATs and 176 ACKNACKs, all of the ACKNACKs from a single address. Repair traffic exists at all only because one of the two topics is reliable. The best-effort one loses samples in silence and generates nothing to look at, which is exactly why a dropout on a best-effort topic is harder to diagnose than the same dropout on a reliable one.</p>
+<p class="verdict">Correlation in time is the whole point, which is why this one belongs on the
+graph rather than in the packet list. Overlay Retransmits with a discovery preset and look for
+spikes at the same moment: discovery churn and repair traffic peaking together usually means
+participants are dropping out and rejoining rather than the link merely being lossy. Remember
+that only reliable topics can produce RTPS retransmits, so a best-effort sensor topic losing
+data shows up as a gap in sequence numbers and not as repair traffic.</p>
+</div>
+
+<div class="symptom">
+<h3>5.9 Large messages fail while small ones work</h3>
+<p>Camera images or point clouds never arrive, while odometry and joint states are fine.</p>
+<p><strong>Check:</strong> filter for fragments with <code>rtps.sm.id == 0x16</code>.</p>
+<p><strong>Healthy:</strong> fragments present and the samples they belong to completing.
+Measured on <code>healthy-cyclone.pcap.gz</code>: 99 fragment submessages on a clean link, all
+of them reassembling.</p>
+<p><strong>Broken:</strong> fragments present but no complete sample ever assembled, or fragments absent entirely for a topic you know is large. Measured on <code>fragment-loss.pcap.gz</code>, a raw camera stream under 0.05% loss: 1505 fragment submessages, 1213 HEARTBEAT_FRAGs, and <strong>10944</strong> IP fragments that never reassemble into anything.</p>
+<p class="verdict">Anything above the network's MTU is split into fragments, and every fragment
+must arrive for the sample to be usable, so a link with modest loss can pass small messages
+happily while never completing a large one. Look at MTU along the path first, then at the
+middleware's own fragment size settings. This is also the case where best-effort QoS hurts
+most, because there is no retransmission to recover the one fragment that went missing.</p>
+</div>
+
+
+<div class="symptom">
+<h3>5.10 A Zenoh node never joins the network</h3>
+<p>On Zenoh, a node starts but nothing it publishes reaches anyone, and nothing reaches it.</p>
+<p><strong>Check:</strong> filter <code>zenoh.body.init_syn.version</code>, then
+<code>zenoh.body.init_ack.zid</code>, then <code>zenoh.body.close.reason</code>.</p>
+<p><strong>Healthy:</strong> the counts match each other. On
+<code>healthy-zenoh.pcap.gz</code>: 3 <code>init_syn</code>, 3 <code>init_ack</code>, 3
+<code>open_syn</code>, 3 <code>open_ack</code>, and 806 declarations once the sessions were
+up.</p>
+<p><strong>Broken, and there is a case below this one.</strong>
+<code>zenoh-no-router.pcap.gz</code> has a node dialling <code>172.30.10.11:7999</code>, where
+nothing is listening. Scope to that port with <code>tcp.port == 7999</code> and the whole
+conversation is 15 frames: 8 connection attempts about 3.4 seconds apart, 7 answered with a
+reset, and no Zenoh at all. The eighth attempt is the last frame in the file, so its refusal
+falls outside the window rather than going missing. Keep the port scope, because the fleet
+sharing the wire puts 15581 Zenoh frames in the same file on port 7447, and a bare
+<code>zenoh</code> filter would tell you the protocol is working fine. Check the TCP handshake
+before the Zenoh one.</p>
+<p><strong>Broken, at the Zenoh layer.</strong> <code>init_syn</code> present with no matching
+<code>init_ack</code> is a node talking to a router that is not answering. Sessions that open
+and then produce <code>close</code> are a router that has gone away:
+<code>zenoh-router-killed.pcap.gz</code> holds the whole arc, 3 close reasons when the router
+dies, 27 connection attempts against 25 refusals while it is down, then 3
+<code>init_syn</code> matched by 3 <code>init_ack</code> once it is back.</p>
+<p class="verdict">Check the router is running and reachable first, because on Zenoh everything
+goes through it: <code>rmw_zenohd</code> up, on the address the nodes are configured to reach,
+with nothing filtering the port. A node whose sessions never form has no fallback path, unlike
+DDS where peers can still find each other directly. If the sessions <em>are</em> forming and
+declarations are still absent, go to 5.5 instead, because that is a capture-timing problem
+rather than a connectivity one.</p>
+<p class="verdict"><em>All of these are measured. One thing the captures settle that the
+handshake's structure does not: rmw_zenoh makes a single connection attempt and then aborts the
+node, rather than retrying. Repeated attempts in a capture mean something is restarting the
+process, not that Zenoh is persistent.</em></p>
+</div>
+
+<div class="symptom">
+<h3>5.11 The capture is slow to open, or seems to hang</h3>
+<p>A large capture takes a long time to load, or a filter appears to do nothing for a while.</p>
+<p><strong>Check:</strong> the file size, and how long the frame count takes to appear.</p>
+<p><strong>Healthy, and slower than you expect:</strong> this is latency, not a ceiling.
+Measured on this build: a 2 MB capture with 5928 frames opens instantly; a 132 MB capture with
+557857 frames takes about 7 seconds to open and about 9 more to apply a filter; a 4.3 GB
+capture with 1906323 frames still opens, in about 15 seconds.</p>
+<p><strong>Broken:</strong> nothing at all after several minutes on a file of a few hundred MB.</p>
+<p class="verdict">Wait longer before concluding anything is wrong, because the work is done once
+per file and a filter on a large capture is a full pass over it. The packet list only ever
+fetches about a hundred rows at a time, so a list that looks short is not a truncated capture.
+If you are working with multi-GB files regularly, cut them down first:
+<code>editcap -A/-B</code> takes a time window and <code>editcap -c</code> splits by frame
+count, and a window around the moment you care about turns minutes of waiting into seconds.</p>
+</div>
+
+<div class="symptom">
+<h3>5.12 The capture tool itself failed, or produced an unusable file</h3>
+<p>The problem is upstream of this viewer: <code>tcpdump</code> or <code>tshark</code> would not
+run, or ran and left a file that answers nothing.</p>
+<p><strong>Check:</strong> what the capture command printed, and
+<code>capinfos your.pcap</code> before opening it anywhere.</p>
+<p><strong>Broken, and what each one means:</strong></p>
+<ul>
+	<li><em>Permission denied</em> or no interfaces listed. Capturing needs root or
+	<code>CAP_NET_RAW</code>. Use <code>sudo</code>, or on a machine where you cannot,
+	<code>sudo setcap cap_net_raw,cap_net_admin+eip $(which dumpcap)</code>.</li>
+	<li><em>The file is tiny and the robot was busy.</em> Wrong interface. Section 4 covers
+	picking it by address rather than by name.</li>
+	<li><em>The capture stopped early.</em> The disk filled. Capture to somewhere with room, and
+	bound the file with <code>-a duration:</code> or <code>-C</code> rather than hoping.</li>
+	<li><em>Frames are present but discovery is missing on a long capture.</em> A ring buffer
+	(<code>-b</code>, or <code>-W</code> with <code>-C</code>) rotated the startup window away.
+	Discovery happens once, at the beginning, so a rotating capture keeps the least interesting
+	part. Capture a bounded window from before startup instead.</li>
+	<li><em>Topic names are absent from discovery that is otherwise there.</em> A short snaplen
+	truncated the payload. Section 3.1 covers why <code>-s 0</code> matters here.</li>
+</ul>
+<p class="verdict">Every one of these is cheaper to catch on the robot than after you have
+travelled home with the file. Run <code>capinfos</code> on the capture before you leave. It
+prints <code>Number of packets</code>, <code>Capture duration</code> and
+<code>Packet size limit</code>, which is what capinfos calls the snaplen. Between them those
+three catch the wrong interface, the run that stopped early and the truncated payload.</p>
+</div>
+
+<div class="symptom">
+<h3>5.13 A published sample reads as Unknown, or a big message never appears whole</h3>
+<p>The frames are there and the topic name is right, but the Info column ends in something like
+<code>Unknown[80]</code> instead of the sample, or a camera image is spread over frames that
+never resolve into one message.</p>
+<p>These look like one symptom and are two unrelated problems. The fragmented message has a fix
+in this UI. The opaque payload does not.</p>
+<p><strong>The big message that never appears whole.</strong> Turn on <em>Reassembly</em> in the
+Dissection row. It joins <code>DATA_FRAG</code> submessages back into whole samples, which is
+what lets you tell an image that arrived complete from one missing a fragment. Anything larger
+than roughly one packet fragments, so this covers images, point clouds and maps. Wireshark
+ships it off. Click it and the packet list re-dissects in place with no need to reopen the
+capture: on <code>fragment-loss.pcap.gz</code> it relabels the 1505 fragment
+submessages with <code>[RTPS fragment]</code>, which is what lets you see that 10944 IP
+fragments in the same file never reassemble into a whole image.</p>
+<p><strong>The payload that reads as Unknown.</strong> This is a limit of wire analysis rather
+than a setting you have missed. Wireshark can only decode a serialized payload if it knows the
+structure of the type, and it has to learn that from a <em>TypeObject</em> carried in discovery.
+ROS 2 does not send one by default. The type <em>name</em> does travel, which is why a capture
+can tell you a topic carries <code>sensor_msgs/msg/Image</code> and still not show you the
+pixels.</p>
+<p>The <em>User data</em> button exposes Wireshark's preference for this, so it is there when a
+capture does carry a TypeObject. On a capture that does not, the button greys itself out and
+clicking it changes nothing. Measured across twelve captures spanning Cyclone, Fast DDS and
+Zenoh: none carried a TypeObject, and a 400-frame sweep came back byte-identical with the
+preference on and off. If you need the contents of a message, read them at the ROS layer with
+<code>ros2 topic echo</code>, which is section 7's point about what the wire will not tell
+you.</p>
+<p class="verdict">Turn reassembly on when you are asking what was published rather than who is
+talking to whom, and leave it off for discovery work, where it adds nothing and costs a pass
+over the file. The setting is remembered and reapplied to each capture you open. The
+<em>Zenoh port</em> box beside them is the equivalent for Zenoh, whose dissector only decodes
+port 7447.</p>
+</div>
+
+
+<h2 id="defaults">6. Useful defaults</h2>
+
+<h3>Capture flags worth starting from</h3>
+
+<pre><code># the everyday one: whole frames, one interface, stop with Ctrl-C
+sudo tcpdump -i &lt;iface&gt; -s 0 -w capture.pcap
+
+# bounded, when you cannot sit and watch it
+sudo tcpdump -i &lt;iface&gt; -s 0 -W 1 -C 200 -w capture.pcap
+
+# same thing with tshark, plus a hard time limit
+sudo tshark -i &lt;iface&gt; -s 0 -a duration:60 -w capture.pcap
+
+# what have I got, without opening a browser
+capinfos capture.pcap
+tshark -r capture.pcap -q -z io,phs</code></pre>
+
+<p>That last one prints a protocol breakdown and is the fastest sanity check that a capture
+contains what you think. Run it before hunting for a filter that returns nothing, because it
+distinguishes "the traffic is not there" from "my filter is wrong".</p>
+
+<h3>The Traffic row</h3>
+
+<p>The four buttons on the Traffic row open a report instead of filtering the packet list.
+Each opens in a new tab, so the capture you are reading stays where it is. They answer
+questions about the shape of the traffic rather than about one protocol exchange.</p>
+
+<div class="tablewrap">
+<table>
+	<tr><th>Button</th><th>What it answers</th></tr>
+	<tr><td><strong>Talkers</strong></td><td>Every address ranked by bytes. Which machine is filling the link, which is the first thing to know when a fleet slows down and no single node reports a problem.</td></tr>
+	<tr><td><strong>Conversations</strong></td><td>Address and port pairs with byte counts. On DDS the ports come from the domain id (3.2), so this shows which participants are actually talking rather than just who is present.</td></tr>
+	<tr><td><strong>Warnings</strong></td><td>Wireshark's own analysis: retransmissions, malformed frames, checksum errors. Greys out when the capture has none, which is normal for a healthy UDP capture.</td></tr>
+	<tr><td><strong>Protocols</strong></td><td>What is on the wire, as a tree with frame and byte counts. Confirms a capture is RTPS or Zenoh before you start filtering.</td></tr>
+</table>
+</div>
+
+<p>These are four of the roughly hundred reports the underlying tool can produce, picked
+because they answer a question a robot operator actually asks. The rest are still in the
+Statistics, Endpoints and Misc menus above the packet list.</p>
+
+<div class="note">
+	<p><strong>Protocols lists <code>rtps</code> but never <code>zenoh</code></strong>, even on a
+	capture that is almost entirely Zenoh and decodes correctly everywhere else. Stock
+	<code>tshark -q -z io,phs</code> drops it the same way, so it is the Zenoh dissector rather
+	than this build. Use the Zenoh field filters in 3.6 to confirm Zenoh traffic instead.</p>
+</div>
+
+<h3>The presets as tshark commands</h3>
+
+<p>The presets are display filters, so anything a button does here you can run on the command
+line against the same file. That matters for two things the browser cannot do: checking a
+capture without opening it, and putting a check in a script that runs on every capture.</p>
+
+<div class="tablewrap">
+<table>
+	<tr><th>Preset</th><th>Command</th></tr>
+	<tr><td>SPDP</td><td><code>tshark -r &lt;file&gt; -Y 'rtps.sm.wrEntityId == 0x000100c2'</code></td></tr>
+	<tr><td>SEDP</td><td><code>tshark -r &lt;file&gt; -Y 'rtps.sm.id == 0x15 &amp;&amp; (rtps.sm.wrEntityId == 0x000003c2 || rtps.sm.wrEntityId == 0x000004c2)'</code></td></tr>
+	<tr><td>Zenoh Declare</td><td><code>tshark -r &lt;file&gt; -Y 'zenoh.body.frame.payload.body.declare.body.declare_key_expr.wire_expr'</code></td></tr>
+	<tr><td>Fragments</td><td><code>tshark -r &lt;file&gt; -Y 'rtps.sm.id == 0x16'</code></td></tr>
+	<tr><td>Retransmits</td><td><code>tshark -r &lt;file&gt; -Y 'rtps.sm.acknack_analysis == 3 || tcp.analysis.retransmission'</code></td></tr>
+</table>
+</div>
+
+<p>Add <code>| wc -l</code> for the count, which is usually the thing you actually want. The
+useful one to script is "did this capture catch discovery", because it is the check that decides
+whether a capture is worth keeping:</p>
+
+<pre><code>tshark -r capture.pcap -Y 'rtps.sm.id == 0x15 &amp;&amp; (rtps.sm.wrEntityId == 0x000003c2 || rtps.sm.wrEntityId == 0x000004c2)' | wc -l</code></pre>
+
+<p>Zero means recapture, whatever else is in the file. Run it on the robot before you copy
+anything off.</p>
+
+<p>To pull fields out rather than count frames, <code>-T fields -e &lt;field&gt;</code> prints
+them one per line, so <code>-T fields -e rtps.param.topicName</code> on the SEDP filter gives you
+every topic the capture saw announced.</p>
+
+<h3>Settings worth keeping in Webshark</h3>
+
+<ul>
+	<li><strong>Bucket on Auto</strong> unless you are chasing the shape of one burst. The
+	underlying tool defaults to one-second buckets, which is wide enough to flatten a whole
+	discovery exchange into a single dot. Auto sizes it from the capture's own length.</li>
+	<li><strong>Second axis for anything overlaid at a different scale.</strong> Rates here differ
+	by orders of magnitude, and a line peaking at 130 next to one peaking at 850 is a flat line
+	at zero unless you move it.</li>
+	<li><strong>Overlay rather than replace.</strong> Clicking a second preset in Rate graph mode
+	adds a line instead of replacing the first, which is what makes two spikes at the same
+	timestamp mean something.</li>
+</ul>
+
+<figure>
+	<img src="guide-assets/graph.png" alt="The advanced graph with two named series on two Y axes">
+	<figcaption>Two presets overlaid, named in the legend, with the smaller series moved to the
+	right-hand axis. Drag on the chart to zoom; the strip underneath keeps the whole capture in
+	view.</figcaption>
+</figure>
+
+<h3>Writing your own display filters</h3>
+
+<p>The presets are a starting point, not a ceiling. Taking one apart is the fastest way to learn
+the syntax, so here is the SEDP filter in full:</p>
+
+<pre><code>rtps.sm.id == 0x15 &amp;&amp; (rtps.sm.wrEntityId == 0x000003c2 || rtps.sm.wrEntityId == 0x000004c2)</code></pre>
+
+<p>Reading it left to right: <code>rtps.sm.id</code> is a field name, always
+<code>protocol.field</code>. <code>== 0x15</code> compares it to the DATA submessage type.
+<code>&amp;&amp;</code> is and, <code>||</code> is or, and parentheses group as you would expect.
+So this says "a DATA submessage, from either of the two endpoint-discovery writers".</p>
+
+<p>The rest of what you need:</p>
+
+<div class="tablewrap">
+<table>
+	<tr><th>You want</th><th>Filter</th></tr>
+	<tr><td>a protocol is present at all</td><td><code>rtps</code>, <code>zenoh</code>, <code>udp</code></td></tr>
+	<tr><td>traffic to or from an address</td><td><code>ip.addr == 192.168.1.5</code></td></tr>
+	<tr><td>one direction only</td><td><code>ip.src == …</code>, <code>ip.dst == …</code></td></tr>
+	<tr><td>a port</td><td><code>udp.port == 13650</code></td></tr>
+	<tr><td>a text field contains something</td><td><code>rtps.param.topicName contains "scan"</code></td></tr>
+	<tr><td>not this</td><td><code>!(ip.addr == 192.168.1.5)</code></td></tr>
+	<tr><td>combine with the preset</td><td>paste the preset filter, add <code>&amp;&amp; ip.addr == …</code></td></tr>
+</table>
+</div>
+
+<p>Build filters up rather than guessing at them. Start with <code>rtps</code>, confirm you get
+frames, then add one term at a time. Note also that a red border on the filter box means
+the filter did not parse, with the reason in its tooltip, which is more useful than a view that
+silently goes blank.</p>
+
+<figure>
+	<img src="guide-assets/filtererror.png" alt="The display filter box showing a parse error">
+	<figcaption>A filter that did not parse. Hover the box for the reason.</figcaption>
+</figure>
+
+<p>Field names drift between Wireshark versions. If a filter from the internet returns nothing,
+check the field still exists before concluding the traffic is absent. Clicking a field in the
+detail pane shows you its real name.</p>
+
+
+<h2 id="limits">7. What the wire will not tell you</h2>
+
+<p>Knowing the boundary keeps you from blaming the tool for questions it cannot answer.</p>
+
+<p><strong>Traffic that never reaches an interface.</strong> Two processes on one machine using
+shared memory are invisible to packet capture. Loopback is capturable if you capture on
+<code>lo</code>, but shared memory is not capturable at all. If the interesting pair of nodes
+lives on the same computer, this is the wrong tool and you want middleware-level or
+application-level instrumentation instead.</p>
+
+<p><strong>Message contents.</strong> You can see that a sample was sent, how big it was, when it
+arrived and whether it was repaired. You cannot see the laser ranges inside it without
+deserializing, which needs the message definitions and is deliberately out of scope here. It
+would also destroy the property that makes this useful, that a capture can be read later by
+somebody who does not have the robot's workspace. Discovery is the exception: topic names, type
+names and QoS are readable as plain fields, because they are protocol-level rather than
+payload.</p>
+
+<p><strong>Repair on best-effort topics.</strong> There is none to find. A best-effort
+writer never retransmits, so a lossy link shows up as a gap in sequence numbers rather than as
+repair traffic. Sensor topics are conventionally best-effort, so the Retransmits preset returning
+almost nothing on a camera-heavy capture is the expected answer and not a clean bill of
+health.</p>
+
+<p><strong>Why a node made a decision.</strong> The wire shows what happened between machines. It
+will not tell you that a callback blocked, that a queue overflowed inside a process, or that an
+executor was starved. When the capture looks healthy and the application does not, the problem
+has probably moved above this layer.</p>
+
+<p><strong>Encrypted discovery.</strong> If the robot runs DDS security, discovery may be
+encrypted and topic names unreadable. This guide does not describe that case because there is no
+secured capture on hand to verify it against, and describing it from the specification alone
+would be guessing.</p>
+
+
+<h2 id="exercises">8. Try it yourself</h2>
+
+<p>Exercises 1 to 5 run on a robot of your own, in order, each building on the last. Exercises 6
+to 8 run on the recorded captures in this repository (copy them in first, below), so you can do
+them on a laptop on a train. Each says what you should see, so you can tell whether it worked
+without anyone to check your answer.</p>
+
+<p>Start with the copy step, because the viewer serves exactly one directory and it is not the
+one the fixtures live in:</p>
+
+<pre><code>cd docker/webshark
+mkdir -p captures                  # first run only, see webshark.yml for why
+cp fixtures/*.pcap.gz captures/
+docker compose -f webshark.yml up -d</code></pre>
+
+<p>That <code>captures/</code> directory is bind-mounted over <code>/captures</code> in the
+container, so anything you drop into it appears in the file list on the next reload, and anything
+baked into the image at that path is hidden by the mount. It is the same directory you will copy
+your robot's capture into for exercise 1, which is why it is worth doing by hand once.
+<code>fixtures/README.md</code> lists what each capture holds.</p>
+
+<div class="exercise">
+<h3>Exercise 1: take a capture you can trust</h3>
+<p>List the robot's interfaces with <code>ip -o -4 addr show</code>. Pick the one carrying ROS 2
+traffic. Start a capture on it, wait two seconds, then start or restart the ROS 2 stack. Run for
+sixty seconds. Copy the file off and open it in webshark, or skip the copy if webshark is
+running on the robot itself.</p>
+<p><strong>You should see:</strong> thousands of frames, and the badge naming a middleware rather
+than nothing.</p>
+<p><strong>If not:</strong> single digits means the wrong interface, so try each candidate for
+five seconds and compare counts. A badge that names nothing means the traffic is not RTPS or
+Zenoh, so check <code>RMW_IMPLEMENTATION</code> on the robot.</p>
+</div>
+
+<div class="exercise">
+<h3>Exercise 2: identify what you are looking at</h3>
+<p>Read the badge. Then confirm it independently: click <strong>SPDP</strong> and look at the
+destination addresses, and check what port they use against the arithmetic in 3.2 for your
+<code>ROS_DOMAIN_ID</code>.</p>
+<p><strong>You should see:</strong> the port matching <code>7400 + 250 × domain</code> for
+multicast, or that plus <code>10 + 2n</code> for unicast. Destinations either at
+<code>239.255.0.1</code> or at a few fixed addresses.</p>
+<p><strong>If not:</strong> a port that matches a different domain means something on your robot
+disagrees about <code>ROS_DOMAIN_ID</code>, which is worth knowing on its own. Zenoh captures
+have no SPDP and the preset is dimmed, correctly; use <strong>Zenoh Declare</strong> instead.</p>
+</div>
+
+<div class="exercise">
+<h3>Exercise 3: prove you caught the discovery window</h3>
+<p>Click <strong>SEDP</strong>, or <strong>Zenoh Declare</strong> on Zenoh.</p>
+<p><strong>You should see:</strong> a non-zero count, and topic names you recognize when you
+click into a frame. Remember the <code>rt/</code> prefix.</p>
+<p><strong>If not:</strong> you have the most common capture failure and section 5.5 is yours.
+Recapture, this time forcing discovery with <code>ros2 topic list --no-daemon</code> while the
+capture runs, or by restarting the Zenoh router. Do not move on until this one passes, because
+exercise 4 depends on it.</p>
+</div>
+
+<div class="exercise">
+<h3>Exercise 4: follow one topic end to end</h3>
+<p>Pick a topic you know the robot publishes. On DDS, find its announcement in SEDP and note the
+writer GUID and the publisher's address, then read the QoS in the detail pane. On Zenoh, click
+<strong>Zenoh Declare</strong> and find the matching <code>wire_expr</code> instead, then note
+the session's TCP stream. Either way, filter the packet list to that address or stream and watch
+the topic's actual data flow: RTPS <code>DATA</code> submessages on DDS,
+<code>…push.payload.put.payload</code> frames on Zenoh.</p>
+<p><strong>You should see:</strong> one announcement or declaration naming the topic, and a
+stream of data frames following it.</p>
+<p><strong>If not:</strong> a topic that never appears in SEDP, or a key expression that never
+appears in Declare, was never advertised, which is section 5.6 and a node problem rather than a
+network one.</p>
+</div>
+
+<div class="exercise">
+<h3>Exercise 5: correlate two things in time, and commit to a verdict</h3>
+<p>Switch to <strong>Rate graph</strong> mode. Click <strong>SPDP</strong> on DDS, or
+<strong>Zenoh Declare</strong> on Zenoh. Then click <strong>Retransmits</strong>, so both lines
+are on one time axis. Move the smaller one to the second axis. Set Bucket narrower and watch the
+shapes change.</p>
+<p><strong>You should see:</strong> two named lines in the legend, both readable, and whether
+their peaks coincide.</p>
+<p>Then write one sentence: what is true about your robot's middleware, and which specific
+evidence in this capture supports it. "Discovery completes and repair traffic is flat, so the
+link is healthy and the dropout is above the middleware" is a verdict. "Here is a graph" is not.
+That sentence is the actual output of this guide.</p>
+</div>
+
+<div class="exercise">
+<h3>Exercise 6: two captures, the same complaint, two different causes</h3>
+<p>In both of these a subscriber was started, ran, and received nothing. The cause is different
+each time.</p>
+<p>Open <code>domain-mismatch.pcap.gz</code>. Filter
+<code>udp.dstport == 17900 || udp.dstport == 26650</code>, which is domains 42 and 77 by the
+arithmetic in 3.2. Then add <code>&amp;&amp; rtps.sm.id == 0x06</code>.</p>
+<p>Open <code>qos-mismatch.pcap.gz</code>. Filter
+<code>rtps.param.topicName == "rt/fixture_qos"</code>, then read
+<code>rtps.reliability_kind</code> on the announcements. Note the source address and the entity
+id alongside it.</p>
+<p><strong>You should see:</strong> 60 frames on the two domain ports and 0 once you add the
+ACKNACK term, because neither participant ever matched anyone and so neither had anyone to
+acknowledge. And 33 announcements of <code>rt/fixture_qos</code>. One comes from 172.30.10.11
+with entity id <code>0x000003c2</code>, a writer, and reads <code>0x00000001</code>, best-effort.
+Thirty come from 172.30.10.20 with entity id <code>0x000004c2</code>, readers, and read
+<code>0x00000002</code>, reliable.</p>
+<p>Then say which is which. One of these is fixed in the environment and the
+other in the code. Discovery that never crosses is a domain or transport problem. Discovery that
+crosses and then fails to match is a QoS problem, and section 3.5 lists which policies can do
+it.</p>
+<p><strong>If not:</strong> if the ACKNACK filter returns 993 instead of 0, you dropped the port
+scope. The healthy fleet shares that wire and answers a file-wide count with its own traffic.</p>
+</div>
+
+<div class="exercise">
+<h3>Exercise 7: change what the dissector will tell you</h3>
+<p>Open <code>fragment-loss.pcap.gz</code> and filter <code>rtps.sm.id == 0x16</code>, which is
+DATA_FRAG. Read the Info column. Now click <strong>Reassembly</strong> in the Dissection row and
+read it again.</p>
+<p><strong>You should see:</strong> 1505 frames either way, and the Info column going from
+<code>DATA_FRAG, HEARTBEAT_FRAG</code> to <code>DATA_FRAG [RTPS fragment], HEARTBEAT_FRAG</code>.
+Nothing in the file changed. Wireshark ships RTPS reassembly off, so until you turn it on the
+dissector will not tell you a fragment belongs to a larger sample.</p>
+<p>Then filter <code>(ip.flags.mf == 1 || ip.frag_offset > 0) &amp;&amp;
+!ip.reassembled.length</code> for 10944 IP fragments that never complete, out of 12501 frames.
+That is the symptom the fixture is named for.</p>
+<p><strong>If not:</strong> if the Info column does not change, the preference did not reach the
+backend, so reload and try once more. If both counts are 0 you have the wrong capture open, since
+the discovery fixtures carry no fragments at all.</p>
+</div>
+
+<div class="exercise">
+<h3>Exercise 8: the filter that answers a question you did not ask</h3>
+<p>Open <code>zenoh-no-router.pcap.gz</code>. A node in this capture was configured to reach a
+router that was not there. Filter <code>zenoh</code> and 15581 frames come back, all of it the
+rest of the fleet talking normally and none of it the node you are looking for. Now filter
+<code>tcp.port == 7999</code>, the address that node was dialling.</p>
+<p><strong>You should see:</strong> 15 frames total. Eight connection attempts about 3.4 seconds
+apart, seven answered with a reset, and no Zenoh at all. The eighth attempt is the last frame
+in the file, so its refusal is outside the window rather than missing. The failure sits below the
+protocol you were filtering on.</p>
+<p><strong>The point:</strong> a capture from a shared bus answers whatever you ask it, and a
+filter with no scope asks about the whole fleet. Every symptom section in this guide that quotes
+a count also names the scope it was counted under.</p>
+</div>
+
+
+<h2 id="appendix">Appendix A. What this build adds</h2>
+
+<p>Everything this image changes over stock <code>qxip/webshark</code>. Most of it you will never
+need to think about; it is here so that nothing in the interface is unexplained.</p>
+
+<div class="tablewrap">
+<table>
+	<tr><th>What</th><th>Why</th><th>Where you see it</th></tr>
+
+	<tr><td colspan="3"><strong>The image</strong></td></tr>
+	<tr><td>Wireshark 4.6</td><td>Upstream ships 3.5, and the Zenoh plugin needs the 4.6 plugin interface.</td><td>Everywhere, as better decoding</td></tr>
+	<tr><td>zenoh-dissector 1.9.0</td><td>Stock Wireshark shows Zenoh as anonymous TCP payload.</td><td>Any Zenoh capture</td></tr>
+	<tr><td>sharkd protocol bridge</td><td>The frontend speaks the old request format; the 4.x backend speaks JSON-RPC 2.0.</td><td>Nowhere, it just works</td></tr>
+	<tr><td>tshark, Python, matplotlib, pandas</td><td>Read, filter and plot a capture inside the container, so analysis needs no host tools. Analysis, not recording: see the two rows below.</td><td><code>docker exec</code></td></tr>
+	<tr><td>Non-root capture capability</td><td>Record on a real interface without running the whole app as root. Only in the robot compose file, which adds <code>CAP_NET_ADMIN</code>. The viewer configuration deliberately cannot record, and <code>tshark -i</code> there fails with <em>Couldn't run dumpcap in child process: Operation not permitted</em>.</td><td><code>webshark.robot.yml</code></td></tr>
+	<tr><td><code>iproute2</code></td><td>Picking an interface by address needs <code>ip</code>, which the base image leaves out, so section 4's advice used to dead-end inside the container.</td><td><code>ip -o -4 addr show</code></td></tr>
+	<tr><td>Shell orientation banner</td><td>A shell lands in the app directory, next to an upstream <code>captures/</code> that is not the mount. The banner names the real path and says whether this container can record.</td><td><code>docker exec -it webshark bash</code></td></tr>
+
+	<tr><td colspan="3"><strong>Upstream bugs fixed</strong></td></tr>
+	<tr><td>Follow Stream link</td><td>A capture with a single stream showed no link at all.</td><td>The Follow view</td></tr>
+	<tr><td>File list sorted newest first</td><td>Finding the capture you just took meant reading filenames.</td><td>The file list</td></tr>
+	<tr><td>Display filter errors surfaced</td><td>A bad filter silently blanked the view with no message.</td><td>Red border and tooltip on the filter box</td></tr>
+	<tr><td>Statistics toolbar made visible</td><td>Upstream renders it with no border, so nobody finds it.</td><td>The menu row</td></tr>
+	<tr><td>Filter glyph applies in place</td><td>Clicking a field's funnel re-opened the whole capture in a popup window, so every drill-down cost a reload. Ctrl-click still opens a tab.</td><td>Right of any field in the detail tree</td></tr>
+	<tr><td>Displayed-frame count</td><td>The title bar shows the whole capture's totals and never moves when a filter applies, so a filter matching nothing looked exactly like one that failed. Wireshark answers this in its status bar.</td><td>Right of the filter box</td></tr>
+	<tr><td>Unreadable captures reported</td><td>A capture the backend cannot open answers with no counts at all, and the page printed those into the title as <code>undefined frames</code>. Refreshing one that had been deleted said <em>no new frames</em>, which is the opposite of the truth.</td><td>The title bar, in red</td></tr>
+
+	<tr><td colspan="3"><strong>ROS 2 additions</strong></td></tr>
+	<tr><td>Four RMW presets</td><td>Typing entity ids from memory is not a workflow.</td><td>Above the packet list</td></tr>
+	<tr><td>Packet list and Rate graph modes</td><td>A discovery storm is obvious as a spike and invisible as a list.</td><td>The radio pair by the presets</td></tr>
+	<tr><td>Preset tooltips</td><td>Say what each matches and what an empty result means.</td><td>Hover any preset</td></tr>
+	<tr><td>Capture badge</td><td>Names the middleware and counts repair events before you click anything.</td><td>Next to the frame count</td></tr>
+	<tr><td>Preset dimming</td><td>The RTPS presets cannot answer a Zenoh capture, so they fade.</td><td>The preset row</td></tr>
+	<tr><td>Refresh and frame count</td><td>A capture still being written does not update on its own.</td><td>Top right</td></tr>
+	<tr><td>ROS 2 colouring rules</td><td>Stock Wireshark colours by transport, so discovery, data and repair all look the same. Repair is red, discovery is blue, fragments are amber.</td><td>Packet list row colours</td></tr>
+	<tr><td>Delta time column</td><td>Relative time alone does not show the gap between two frames, which is the thing you read when data arrives in bursts.</td><td>Third column</td></tr>
+	<tr><td>Source and destination port columns</td><td>The domain id sets the ports, so a domain mismatch is readable without opening a frame.</td><td>Beside each address</td></tr>
+	<tr><td>Traffic row</td><td>Four of the roughly hundred reports the backend can produce, picked because they answer an operator's question. The rest stay in the menus.</td><td>Below the Repair row</td></tr>
+	<tr><td>Protocol Hierarchy renderer</td><td>The backend answers the request but stock has no renderer for it, so the menu entry opened an empty panel with no error.</td><td>Traffic &gt; Protocols</td></tr>
+	<tr><td><code>.pcapng</code> and <code>.cap</code> listed</td><td>Stock lists only <code>*.pcap</code>, hiding most captures a user arrives with: tshark and Wireshark both write pcapng by default.</td><td>The file list</td></tr>
+	<tr><td>Columns menu</td><td>Ten columns is more than fits a laptop screen. Hidden columns give their width to Info, and the choice is remembered.</td><td>Right of the Misc menu</td></tr>
+	<tr><td>Dissection row</td><td>Two RTPS settings Wireshark ships switched off, plus the Zenoh port. The packet list re-dissects without reopening the capture.</td><td>Between Repair and Traffic</td></tr>
+
+	<tr><td colspan="3"><strong>The graph</strong></td></tr>
+	<tr><td>Named series</td><td>Stock labels every line "Graph #N", so overlaid lines are indistinguishable.</td><td>Legend and graph rows</td></tr>
+	<tr><td>Bucket width</td><td>The default one-second bucket hides discovery bursts entirely.</td><td>Bucket dropdown</td></tr>
+	<tr><td>Second Y axis</td><td>Lines differing by orders of magnitude flatten each other.</td><td>Axis column</td></tr>
+	<tr><td>Y axis labels</td><td>Stock leaves both axes bare, so a two-row graph gives no way to tell which scale belongs to which line. Names the unit and the bucket width, e.g. <code>Packets / 10 ms</code>.</td><td>Either side of the chart</td></tr>
+	<tr><td>Zoom and overview strip</td><td>Find the moment something happened without recapturing.</td><td>Drag on the chart</td></tr>
+	<tr><td>Clear Graphs</td><td>Stock can add graph rows but never remove them.</td><td>Next to Render</td></tr>
+	<tr><td>Graph rows remembered</td><td>A multi-line comparison took minutes to build and stock lost it on every refresh. Saved when you press Render.</td><td>The graph rows, after a reload</td></tr>
+	<tr><td><code>?graph=</code> URL parameter</td><td>Link straight to a rendered graph.</td><td>The address bar</td></tr>
+</table>
+</div>
+
+
+<h2 id="glossary">Appendix B. Glossary</h2>
+
+<p>Every term the rest of this guide uses without stopping to define it. Grouped by which layer
+it belongs to, because the same word can mean different things one layer up or down.</p>
+
+<h3>Capture and tooling</h3>
+
+<div class="tablewrap">
+<table>
+	<tr><th>Term</th><th>What it means</th></tr>
+	<tr><td><strong>frame</strong>, <strong>packet</strong></td><td>One unit of data as it appeared on the network, headers included. Used interchangeably here.</td></tr>
+	<tr><td><strong>pcap</strong>, <strong>pcapng</strong></td><td>The two capture file formats. pcapng is newer and holds more metadata. Both open here.</td></tr>
+	<tr><td><strong>capture filter</strong></td><td>Decides what gets written to disk. Applied while capturing, so whatever it rejects is gone. BPF syntax, e.g. <code>udp port 13650</code>.</td></tr>
+	<tr><td><strong>display filter</strong></td><td>Decides what you are shown from a file you already have. Wireshark syntax, e.g. <code>rtps.sm.id == 0x15</code>. Nothing is lost, so change it freely.</td></tr>
+	<tr><td><strong>BPF</strong></td><td>Berkeley Packet Filter, the syntax capture filters use. Unrelated to display filter syntax, which is the usual reason a filter copied from the internet does not work.</td></tr>
+	<tr><td><strong>snaplen</strong></td><td>How many bytes of each frame get written. Truncating it hides topic names, which live deep in discovery payloads. Capture whole frames with <code>-s 0</code>.</td></tr>
+	<tr><td><strong>promiscuous mode</strong></td><td>Asks the interface for frames not addressed to this machine. On by default, and buys less on a switched network than people expect.</td></tr>
+	<tr><td><strong>interface</strong></td><td>One network connection on the machine, e.g. <code>eth0</code>, <code>wlan0</code>. You capture on one at a time, and picking the wrong one is the most common way to get an empty file.</td></tr>
+	<tr><td><strong>loopback</strong></td><td>The virtual interface (<code>lo</code>) a machine uses to talk to itself. Capturable, but only if you capture on it.</td></tr>
+	<tr><td><strong>shared memory</strong></td><td>A transport that hands data between processes on one machine without touching the network. Not capturable by any packet tool, because no packet exists.</td></tr>
+	<tr><td><strong>ring buffer</strong></td><td>Capture mode that keeps the most recent N files and deletes older ones. It keeps the end of a run and discards the startup window where discovery lives.</td></tr>
+	<tr><td><strong>MTU</strong></td><td>Maximum transmission unit, the largest frame a link carries. Typically 1500 bytes. Anything larger is fragmented.</td></tr>
+	<tr><td><strong>tcpdump</strong>, <strong>tshark</strong></td><td>Command-line capture tools. <code>tshark</code> is Wireshark's, and can also read and filter an existing file.</td></tr>
+	<tr><td><strong>dumpcap</strong></td><td>The small privileged binary that does the actual capturing for Wireshark and tshark. What you grant capture capability to.</td></tr>
+	<tr><td><strong>capinfos</strong></td><td>Prints a capture's frame count, duration and snaplen without opening it. The fastest sanity check on a file.</td></tr>
+	<tr><td><strong>sharkd</strong></td><td>Wireshark's daemon. Does all decoding and filtering for this build. The browser only renders what it returns.</td></tr>
+	<tr><td><strong>dissector</strong></td><td>The code that decodes one protocol. This image adds a Zenoh dissector that stock Wireshark does not ship.</td></tr>
+</table>
+</div>
+
+<h3>ROS 2</h3>
+
+<div class="tablewrap">
+<table>
+	<tr><th>Term</th><th>What it means</th></tr>
+	<tr><td><strong>RMW</strong></td><td>ROS Middleware interface. ROS 2 defines this interface rather than a network protocol. An implementation behind it does the networking.</td></tr>
+	<tr><td><strong><code>RMW_IMPLEMENTATION</code></strong></td><td>The environment variable naming which one is in use. Unset means the default, Fast DDS on Jazzy.</td></tr>
+	<tr><td><strong>DDS</strong></td><td>Data Distribution Service, the standard behind Fast DDS and Cyclone DDS. Speaks RTPS on the wire.</td></tr>
+	<tr><td><strong>Fast DDS</strong>, <strong>Cyclone DDS</strong></td><td>The two DDS implementations you are likely to meet. Same protocol, different behaviour: Cyclone bundles submessages far more aggressively.</td></tr>
+	<tr><td><strong>Zenoh</strong></td><td>The third option, <code>rmw_zenoh_cpp</code>. Not DDS, shares nothing with RTPS, and normally routes through a broker process.</td></tr>
+	<tr><td><strong>domain id</strong>, <strong><code>ROS_DOMAIN_ID</code></strong></td><td>Isolates one ROS 2 network from another. Determines the port numbers, so two machines on different domains are talking on different ports entirely.</td></tr>
+	<tr><td><strong>name mangling</strong></td><td>ROS 2 names get rewritten for the wire. Topic <code>/scan</code> becomes <code>rt/scan</code>. The <code>rq/</code> and <code>rr/</code> prefixes are the request and reply halves of a service.</td></tr>
+	<tr><td><strong>QoS</strong></td><td>Quality of Service, negotiated per topic. The writer must offer at least what the reader requests or they never connect, silently.</td></tr>
+	<tr><td><strong>reliability</strong></td><td>Best-effort or reliable. A best-effort writer never retransmits, so loss on it shows as a sequence gap rather than repair traffic.</td></tr>
+	<tr><td><strong>durability</strong></td><td>Volatile or transient-local. Transient-local keeps the last sample for readers that arrive later, which is what makes a latched topic work.</td></tr>
+	<tr><td><strong>history</strong></td><td>Keep-last with a depth, or keep-all. A shallow depth drops samples under load without any mismatch or error.</td></tr>
+	<tr><td><strong>deadline</strong>, <strong>liveliness</strong></td><td>Duration policies. A reader requesting a tighter deadline than the writer offers never matches.</td></tr>
+</table>
+</div>
+
+<h3>RTPS, the DDS wire protocol</h3>
+
+<div class="tablewrap">
+<table>
+	<tr><th>Term</th><th>What it means</th></tr>
+	<tr><td><strong>RTPS</strong></td><td>Real-Time Publish-Subscribe, what both DDS implementations put on the wire, over UDP.</td></tr>
+	<tr><td><strong>message</strong> vs <strong>submessage</strong></td><td>One UDP datagram carries one RTPS message, which carries one or more submessages. Frame counts are not submessage counts.</td></tr>
+	<tr><td><strong>DATA</strong></td><td>A sample. Discovery announcements are DATA too, just on builtin topics. <code>rtps.sm.id == 0x15</code>.</td></tr>
+	<tr><td><strong>DATA_FRAG</strong></td><td>One piece of a sample too large for a single datagram. Every fragment must arrive for the sample to be usable.</td></tr>
+	<tr><td><strong>HEARTBEAT</strong></td><td>A reliable writer announcing which sequence numbers it currently holds.</td></tr>
+	<tr><td><strong>ACKNACK</strong></td><td>A reader replying with what it has and what it is missing. Most ACKNACKs are normal acknowledgement, not trouble.</td></tr>
+	<tr><td><strong>GAP</strong></td><td>A writer saying a sequence number is intentionally absent, so readers stop waiting for it.</td></tr>
+	<tr><td><strong>GUID</strong></td><td>16 bytes identifying a writer or reader: a per-participant prefix plus a per-entity id. Data packets carry a GUID, never a topic name.</td></tr>
+	<tr><td><strong>guidPrefix</strong></td><td>The per-participant half of a GUID. All endpoints in one participant share it.</td></tr>
+	<tr><td><strong>entity id</strong></td><td>The per-endpoint half. Reserved values identify builtin endpoints, e.g. <code>0x000100c2</code> for participant announcements.</td></tr>
+	<tr><td><strong>participant</strong></td><td>The unit that owns a network endpoint and announces itself. A process usually has one, shared by all its nodes, so participant count is lower than node count.</td></tr>
+	<tr><td><strong>endpoint</strong>, <strong>writer</strong>, <strong>reader</strong></td><td>One publisher or subscriber inside a participant. Writers send, readers receive.</td></tr>
+	<tr><td><strong>builtin endpoint</strong></td><td>An endpoint DDS uses to run itself rather than to carry your data. Discovery runs on these.</td></tr>
+	<tr><td><strong>SPDP</strong></td><td>Simple Participant Discovery Protocol. Stage one: participants announce that they exist. Best-effort and repeated.</td></tr>
+	<tr><td><strong>SEDP</strong></td><td>Simple Endpoint Discovery Protocol. Stage two: participants tell each other about their writers and readers. Carries topic names, type names and QoS, so it is the richest thing in a capture.</td></tr>
+	<tr><td><strong>vendor id</strong></td><td>Identifies which DDS implementation sent a frame. Cyclone is <code>0x0110</code>, Fast DDS is <code>0x010f</code>.</td></tr>
+	<tr><td><strong>multicast</strong></td><td>One packet delivered to a group of listeners, e.g. <code>239.255.0.1</code>. How discovery works by default, and what Wi-Fi and many switches drop.</td></tr>
+	<tr><td><strong>unicast</strong></td><td>One packet to one address. What a static peer list uses instead of multicast.</td></tr>
+</table>
+</div>
+
+<h3>Zenoh</h3>
+
+<div class="tablewrap">
+<table>
+	<tr><th>Term</th><th>What it means</th></tr>
+	<tr><td><strong>session</strong></td><td>Zenoh's unit, roughly where DDS has a participant. Formed by a handshake, and visible in a capture as init and open exchanges.</td></tr>
+	<tr><td><strong>router</strong>, <strong>peer</strong>, <strong>client</strong></td><td>The three roles a session can take. A router forwards, a peer talks directly to other peers, a client connects through a router.</td></tr>
+	<tr><td><strong><code>rmw_zenohd</code></strong></td><td>The router process ROS 2 normally runs, with the nodes as its clients. Traffic goes to it and back out, so where you capture matters more than with DDS.</td></tr>
+	<tr><td><strong>key expression</strong></td><td>Zenoh's equivalent of a topic name: a slash-separated string supporting wildcards. The domain id is the leading field, not the topic.</td></tr>
+	<tr><td><strong>Declare</strong></td><td>A session telling the router which key expressions it has. The closest thing to discovery, sent once at session setup and not repeated for newcomers.</td></tr>
+	<tr><td><strong>scouting</strong></td><td>How a session finds a router to connect to, before any of the above happens.</td></tr>
+</table>
+</div>
+
+
+<footer>
+	<p>Part of the ROSCon 2026 workshop "Mastering the Jazzy RMW". This page ships inside the
+	Webshark image, so it always matches the build you are running.</p>
+</footer>
+
+</main>
+</div>
+</body>
+</html>

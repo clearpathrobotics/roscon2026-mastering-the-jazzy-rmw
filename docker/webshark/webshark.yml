@@ -1,0 +1,20 @@
+name: roscon2026-jazzy-rmw
+services:
+  webshark:
+    image: ghcr.io/clearpathrobotics/roscon2026-mastering-the-jazzy-rmw:webshark-latest
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: webshark
+    # Pull the published image; `docker compose build` still rebuilds it locally.
+    pull_policy: missing
+    ports:
+      - "127.0.0.1:8085:8085"
+    volumes:
+      # Drop pcaps here and open them at localhost:8085, wherever they were recorded.
+      # Create the directory first (mkdir -p captures), because compose auto-creates a
+      # missing bind mount as root and the container's non-root UID 1000 can't write to it.
+      #
+      # The workshop layers webshark.lab2.yml on top to point this at the mock fleet's
+      # captures instead. Compose replaces a bind by target, so the overlay wins.
+      - ./captures:/captures

@@ -1,0 +1,43 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<profiles xmlns="http://www.eprosima.com/XMLSchemas/fastRTPS_Profiles">
+
+  <!-- lab2 overlay config (keeps lab1's rmw_configuration/ pristine). Luis's
+       mock.yml references fast/mock-robot-3.xml but lab1 only ships robots 1-2;
+       the lab2 bench brings up all three, so robot-3's Fast DDS profile lives
+       here and the overlay re-points MOCK_ROBOT_3_FASTRTPS_DEFAULT_PROFILES_FILE
+       at it. Mirrors fast/mock-robot-2.xml with robot-3's mock-b0 address.
+
+       Pin Fast DDS to mock-robot-3's exact mock-b0 address (172.30.10.0/24 is
+       the only segment shared with the observer and mock-robot-1/2). The
+       interfaceWhiteList restricts SPDP multicast + all traffic to that NIC,
+       so the observer reliably discovers this robot across the star
+       topology. Analogous to cyclone/mock-robot-3.xml's <NetworkInterface>. -->
+  <transport_descriptors>
+    <transport_descriptor>
+      <transport_id>udp_mock_b0</transport_id>
+      <type>UDPv4</type>
+      <interfaceWhiteList>
+        <address>172.30.10.13</address>
+      </interfaceWhiteList>
+    </transport_descriptor>
+  </transport_descriptors>
+
+  <participant profile_name="default_participant" is_default_profile="true">
+    <rtps>
+      <userTransports>
+        <transport_id>udp_mock_b0</transport_id>
+      </userTransports>
+      <useBuiltinTransports>false</useBuiltinTransports>
+      <builtin>
+        <discovery_config>
+          <discoveryProtocol>SIMPLE</discoveryProtocol>
+          <EDP>SIMPLE</EDP>
+          <leaseDuration>
+            <sec>DURATION_INFINITY</sec>
+          </leaseDuration>
+        </discovery_config>
+      </builtin>
+    </rtps>
+  </participant>
+
+</profiles>

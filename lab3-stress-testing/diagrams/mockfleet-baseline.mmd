@@ -1,0 +1,14 @@
+graph LR
+  Host["Docker host"]
+  Net["flat-net Docker bridge - no shaping"]
+  Pinned["Robots 1..P - hub-and-spoke Cyclone config"]
+  Default["Robots P+1..N - shared multicast config"]
+  Observer["observer"]
+  Netdata["Netdata: br-... and Apps CPU charts"]
+
+  Host --> Net
+  Net --> Pinned
+  Net --> Default
+  Net --> Observer
+  Host --> Netdata
+  Net --> Netdata

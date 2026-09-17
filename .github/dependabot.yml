@@ -1,0 +1,20 @@
+version: 2
+updates:
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: weekly
+
+  # Base-image digest bumps. Each Dockerfile that pins an external image by
+  # `@sha256:...` gets a directory entry so dependabot can propose the update
+  # against the right path. Directories must match Dockerfile locations:
+  # rename here whenever an image directory is renamed, otherwise dependabot
+  # opens PRs against paths that no longer exist.
+
+  - package-ecosystem: docker
+    directory: /docker/ubuntu-headless
+    schedule:
+      interval: weekly
+    ignore:
+      - dependency-name: "ubuntu"
+        update-types: ["version-update:semver-major", "version-update:semver-minor"]

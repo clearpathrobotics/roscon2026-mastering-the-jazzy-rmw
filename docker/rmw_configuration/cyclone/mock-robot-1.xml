@@ -1,0 +1,24 @@
+<CycloneDDS>
+  <Domain id="any">
+    <General>
+      <!-- Spoke node. Discover over the shared mock-b0 bridge but peer with
+           exactly one participant: the observer (172.30.10.20). Multicast
+           is disabled and no other robot is listed as a peer, so this robot
+           never exchanges discovery with mock-robot-2/3 and cannot see them,
+           even though all robots share mock-b0.
+           See mock-observer.xml for the full hub-and-spoke rationale. -->
+      <AllowMulticast>false</AllowMulticast>
+      <Interfaces>
+        <NetworkInterface address="172.30.10.11"/>  <!-- mock-b0 (shared) -->
+      </Interfaces>
+    </General>
+    <Discovery>
+      <ParticipantIndex>auto</ParticipantIndex>
+      <MaxAutoParticipantIndex>120</MaxAutoParticipantIndex>
+      <Peers>
+        <Peer address="localhost"/>     <!-- same-host participants (ros2 CLI) -->
+        <Peer address="172.30.10.20"/>  <!-- observer -->
+      </Peers>
+    </Discovery>
+  </Domain>
+</CycloneDDS>

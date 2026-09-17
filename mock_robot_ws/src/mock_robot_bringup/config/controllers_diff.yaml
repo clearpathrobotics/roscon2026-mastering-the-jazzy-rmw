@@ -1,0 +1,26 @@
+# controller_manager params — matches under any robot namespace
+/**:
+  ros__parameters:
+    update_rate: 50
+    joint_state_broadcaster:
+      type: joint_state_broadcaster/JointStateBroadcaster
+    diff_drive_controller:
+      type: diff_drive_controller/DiffDriveController
+
+# diff_drive_controller node params — matches the controller node under any namespace
+/**/diff_drive_controller:
+  ros__parameters:
+    left_wheel_names: ["front_left_wheel_joint", "rear_left_wheel_joint"]
+    right_wheel_names: ["front_right_wheel_joint", "rear_right_wheel_joint"]
+    wheel_separation: 0.562
+    wheel_radius: 0.1651
+    publish_rate: 50.0
+    # Mock hardware wheel feedback emits a large velocity transient while the controller
+    # spawns; the EKF fuses velocity only, so it integrates that burst permanently.
+    open_loop: true
+    enable_odom_tf: false
+    odom_frame_id: odom
+    base_frame_id: base_link
+    tf_frame_prefix_enable: false
+    cmd_vel_timeout: 0.5
+    use_stamped_vel: true

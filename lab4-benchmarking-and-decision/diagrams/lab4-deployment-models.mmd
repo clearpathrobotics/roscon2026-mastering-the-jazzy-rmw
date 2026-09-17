@@ -1,0 +1,32 @@
+graph TB
+  Runner["workshop.sh run"]
+  A["Template A: local synthetic benchmark"]
+  B["Template B: distributed MCAP replay"]
+
+  subgraph Local["Local two-container pair"]
+    Pub["ros2-rmw publisher and service server"]
+    Sub["ros2-rmw-b subscriber and service client"]
+    Pub <--> Sub
+  end
+
+  subgraph Fleet["Flat fleet-net Docker bridge"]
+    F1["fleet-1: Lab 4 replay"]
+    F2["fleet-2: Lab 4 replay"]
+    FN["fleet-N: Lab 4 replay"]
+    Receiver["lab4-receiver: class_probe\n(unshaped, no playback)"]
+  end
+
+  N1["netem: fleet-1 link"]
+  N2["netem: fleet-2 link"]
+  NN["netem: fleet-N link"]
+
+  Runner --> A --> Pub
+  Runner --> B --> F1
+  B --> F2
+  B --> FN
+  F1 --> Receiver
+  F2 --> Receiver
+  FN --> Receiver
+  N1 --> F1
+  N2 --> F2
+  NN --> FN

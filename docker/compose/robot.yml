@@ -1,0 +1,39 @@
+# Canonical mock-robot DEFINITION (never started directly).
+#
+# Carries the bits every topology's robot shares: image/build, tty/caps,
+# ROS_DOMAIN_ID, and the editable workspace + rmw_configuration mounts. It has
+# NO `networks` and NO `command`. Each topology file (star/flat/routed) extends
+# this service and supplies its own wiring and entrypoint.
+#
+# The `_def` sentinel profile keeps it out of every normal `up`; it exists only
+# to be referenced via `extends: {file: robot.yml, service: mock-robot}`.
+name: roscon2026-jazzy-rmw
+
+services:
+  mock-robot:
+    profiles: ["_def"]
+    image: ghcr.io/clearpathrobotics/roscon2026-mastering-the-jazzy-rmw:ubuntu-headless-latest
+    pull_policy: missing
+    build:
+      context: ../../docker
+      dockerfile: ubuntu-headless/Dockerfile
+      additional_contexts:
+        mock_ws: ../../mock_robot_ws
+    init: true
+    stdin_open: true
+    tty: true
+    cap_add: [NET_ADMIN, NET_RAW]
+    environment:
+      ROS_DOMAIN_ID: "${ROS_DOMAIN_ID:-25}"
+    volumes:
+      - ../rmw_configuration:/rmw_configuration:ro
+      - ../../mock_robot_ws/src:/ws/src:ro
+      # /scripts = unified host-authored container entrypoints (including the
+      # cross-lab /scripts/shared helpers, e.g. play_bag.sh); /scripts/lab3 = leaf
+      # helpers (pilot.py, fleet_map.py, ap_entrypoint.sh) nested under it.
+      - ../scripts:/scripts
+      - ../../lab3-stress-testing/scripts:/scripts/lab3:ro
+      # /bags = recorded MCAPs for the WORKLOAD=bag replay path (empty by default).
+      - ${BAG_DIR:-../bags}:/bags:ro
+      - ../../lab2-on-the-wire/captures:/lab2-captures
+      - ../../lab2-on-the-wire/scripts:/lab2-scripts:ro

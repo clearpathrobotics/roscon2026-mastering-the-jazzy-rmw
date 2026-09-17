@@ -1,0 +1,116 @@
+name: Lab 3 routed tests
+
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - 'docker/ubuntu-headless/**'
+      - 'docker/docker-bake.hcl'
+      - 'docker/.dockerignore'
+      - 'docker/docker-compose.yml'
+      - 'scripts/workshop'
+      - 'scripts/gen_topology.sh'
+      - 'lab3-stress-testing/scripts/**'
+      - 'lab3-stress-testing/exercises/**'
+      - '.github/workflows/lab3-routed-tests.yml'
+  workflow_dispatch:
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
+
+jobs:
+  routed-smoke:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v7
+      - uses: docker/setup-buildx-action@v4
+
+      - name: Build and load ubuntu-headless
+        working-directory: docker
+        run: |
+          docker buildx bake --allow=fs.read=../mock_robot_ws -f docker-bake.hcl \
+            --load \
+            --set '*.cache-from=type=gha' \
+            --set '*.cache-to=type=gha,mode=max' \
+            --set '*.platform=linux/amd64' \
+            ubuntu-headless
+
+      - name: Load shaping modules
+        run: sudo -n modprobe -a ifb sch_netem sch_htb act_mirred
+
+      - name: Run Cyclone routed topology
+        run: |
+          scripts/workshop -t routed up 3 cyclone
+          [[ "$(docker exec wifi-ap ip -o -4 addr show | grep -Ec '172\.40\.(1|2|3|100)\.2/')" -eq 4 ]]
+          scripts/workshop -t routed netem good
+          docker exec wifi-ap grep -Fx 'capacity_mbps=100.000' /run/ap_shape.env
+          docker exec wifi-ap tc qdisc show dev ifb0 | grep -q 'qdisc htb'
+          scripts/workshop -t routed netem bad
+          docker exec wifi-ap grep -Fx 'capacity_mbps=20.000' /run/ap_shape.env
+          docker exec wifi-ap tc qdisc show dev ifb0 | grep -q 'delay 80ms'
+          scripts/workshop -t routed netem good
+          # The observer is idle after `up`; its Foxglove bridge (which also starts
+          # fleet_map on routed) must run before /fleet_map/state_freshness exists.
+          scripts/workshop -t routed observer bridge
+          timeout 150 docker exec observer bash -lc '
+            source /opt/ros/jazzy/setup.bash
+            until ros2 topic list --no-daemon | grep -Fxq /fleet_map/state_freshness; do sleep 1; done
+            until timeout 5 ros2 topic echo --once /fleet_map/state_freshness >/dev/null 2>&1; do sleep 1; done
+          '
+
+      - name: Recreate routed topology with Zenoh
+        run: |
+          cyclone_ap="$(docker inspect --format '{{.Id}}' wifi-ap)"
+          cyclone_console="$(docker inspect --format '{{.Id}}' observer)"
+          scripts/workshop -t routed down
+          scripts/workshop -t routed up 3 zenoh
+          [[ "$(docker inspect --format '{{.Id}}' wifi-ap)" != "$cyclone_ap" ]]
+          [[ "$(docker inspect --format '{{.Id}}' observer)" != "$cyclone_console" ]]
+          timeout 10 docker exec wifi-ap sh -c 'ss -ltn | grep -q :7447'
+          scripts/workshop -t routed netem good
+          docker exec wifi-ap grep -Fx 'capacity_mbps=100.000' /run/ap_shape.env
+          # The observer is idle after `up`; its Foxglove bridge (which also starts
+          # fleet_map on routed) must run before /fleet_map/state_freshness exists.
+          scripts/workshop -t routed observer bridge
+          timeout 150 docker exec observer bash -lc '
+            source /opt/ros/jazzy/setup.bash
+            until ros2 topic list --no-daemon | grep -Fxq /fleet_map/state_freshness; do sleep 1; done
+            until timeout 5 ros2 topic echo --once /fleet_map/state_freshness >/dev/null 2>&1; do sleep 1; done
+          '
+          scripts/workshop -t routed netem bad
+          docker exec wifi-ap grep -Fx 'capacity_mbps=20.000' /run/ap_shape.env
+          scripts/workshop -t routed netem good
+
+      - name: Collect diagnostics
+        if: failure()
+        run: |
+          docker compose -f docker/compose/routed.yml --profile routed ps || true
+          docker logs --tail 100 wifi-ap || true
+          docker exec wifi-ap ip -o -4 addr show || true
+          docker exec wifi-ap tc -s qdisc show || true
+          docker exec wifi-ap cat /run/ap_shape.env || true
+
+      - name: Tear down routed topology
+        if: always()
+        run: |
+          scripts/workshop -t routed down || true
+          if docker ps -a --format '{{.Names}}' | grep -Eq '^(wifi-ap|observer|mock-robot-[0-9]+)$'; then
+            echo 'routed containers remain after cleanup'
+            exit 1
+          fi
+          # Must match the `name:` field in docker-compose.yml.
+          project="roscon2026-jazzy-rmw"
+          while IFS= read -r network_id; do
+            network_key="$(docker network inspect --format '{{ index .Labels "com.docker.compose.network" }}' "$network_id")"
+            if [[ "$network_key" =~ ^(mock-robot-[0-9]+-net|observer-net)$ ]]; then
+              echo "routed network remains after cleanup: $network_key"
+              exit 1
+            fi
+          done < <(docker network ls --filter "label=com.docker.compose.project=$project" --format '{{.ID}}')

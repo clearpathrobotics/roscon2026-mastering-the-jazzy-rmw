@@ -1,0 +1,19 @@
+{
+  "meters_per_pixel": 0.01,
+  "width": 850,
+  "height": 1050,
+  "origin_px": [
+    425.0,
+    525.0
+  ],
+  "forward_axis": "up",
+  "left_axis": "left",
+  "x_range": [
+    -5.05,
+    5.05
+  ],
+  "y_range": [
+    -4.05,
+    4.05
+  ]
+}

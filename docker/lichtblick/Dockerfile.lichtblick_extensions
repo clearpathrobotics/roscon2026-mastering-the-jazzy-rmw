@@ -1,0 +1,208 @@
+FROM ghcr.io/lichtblick-suite/lichtblick:latest
+
+# Copy the extension packages into the image so Caddy can serve them as static files.
+# The auto-install script (injected below) fetches them from /extensions/... at runtime.
+# Build context must be this directory (where the .foxe files live):
+#   docker build -f Dockerfile.lichtblick_extensions -t lichtblick-extensions .
+COPY --chmod=644 lcamero.joystick-extension-0.0.0.foxe \
+    /www/extensions/lcamero.joystick-extension-0.0.0.foxe
+COPY --chmod=644 joshnewans.joy-panel-0.0.5.foxe \
+  /www/extensions/joshnewans.joy-panel-0.0.5.foxe
+
+# Bake in the default layout. The entrypoint substitutes the contents of this file
+# into the LICHTBLICK_SUITE_DEFAULT_LAYOUT_PLACEHOLDER token in index.html, so the
+# app opens with these panels already arranged. Must be a valid LayoutData object.
+COPY --chmod=644 default.json /lichtblick/default-layout.json
+
+# The original image serves from /src (the webpack output); we patch the startup
+# script instead of changing the file-server root — see the ENTRYPOINT override below.
+
+# ── Auto-install injection script ────────────────────────────────────────────
+# At container start this script:
+#   1. Finds the index.html served by Caddy (copied from /src in the base image).
+#   2. Injects an inline <script> before </body> that, on first page load:
+#      a. Fetches /extensions/lcamero.joystick-extension-0.0.0.foxe
+#      b. Opens IndexedDB "lichtblick-extensions-local" (the IdbExtensionStorage DB)
+#      c. Writes the StoredExtension record so the app discovers it immediately.
+# The check "already installed?" uses the metadata store so re-loading never re-installs.
+
+COPY <<'ENTRYPOINT_SH' /entrypoint.sh
+#!/bin/sh
+set -e
+
+# ── Replicate the base-image default-layout injection ────────────────────────
+mkdir -p /lichtblick
+touch /lichtblick/default-layout.json
+index_html=$(cat /src/index.html)
+replace_pattern='/*LICHTBLICK_SUITE_DEFAULT_LAYOUT_PLACEHOLDER*/'
+replace_value=$(cat /lichtblick/default-layout.json)
+patched="${index_html/"$replace_pattern"/"$replace_value"}"
+
+# ── Inject extension auto-install <script> before </body> ────────────────────
+auto_install_script='<script>
+(function() {
+  var DB_NAME = "lichtblick-extensions-local";
+  var DB_VERSION = 1;
+  var EXTENSIONS = [
+    {
+      logTag: "joystick-ext",
+      url: "/extensions/lcamero.joystick-extension-0.0.0.foxe",
+      info: {
+        id: "lcamero.joystick-extension",
+        name: "joystick-extension",
+        displayName: "Joystick Extension",
+        description: "Joystick teleop panel extension that publishes geometry_msgs/Twist or geometry_msgs/TwistStamped.",
+        publisher: "lcamero",
+        homepage: "",
+        version: "0.0.0",
+        license: "UNLICENSED",
+        keywords: ["lichtblick-extension","joystick","teleop","ros"],
+        namespace: "local",
+        qualifiedName: "Joystick Extension",
+        readme: "",
+        changelog: "",
+        size: 0
+      }
+    },
+    {
+      logTag: "joy-panel-ext",
+      url: "/extensions/joshnewans.joy-panel-0.0.5.foxe",
+      info: {
+        id: "Josh Newans.joy-panel",
+        name: "joy-panel",
+        displayName: "Joystick Panel",
+        description: "Foxglove panel extension for joystick/gamepad control.",
+        publisher: "Josh Newans",
+        homepage: "",
+        version: "0.0.5",
+        license: "MIT",
+        keywords: [],
+        namespace: "local",
+        qualifiedName: "Joystick Panel",
+        readme: "",
+        changelog: "",
+        size: 0
+      }
+    }
+  ];
+
+  function openDB(cb) {
+    var req = indexedDB.open(DB_NAME, DB_VERSION);
+    req.onupgradeneeded = function(e) {
+      var db = e.target.result;
+      if (!db.objectStoreNames.contains("metadata")) {
+        db.createObjectStore("metadata", { keyPath: "id" });
+      }
+      if (!db.objectStoreNames.contains("extensions")) {
+        db.createObjectStore("extensions", { keyPath: "info.id" });
+      }
+    };
+    req.onsuccess = function(e) { cb(null, e.target.result); };
+    req.onerror   = function(e) { cb(e.target.error); };
+  }
+
+  function alreadyInstalled(db, extId, cb) {
+    try {
+      var tx  = db.transaction("metadata", "readonly");
+      var req = tx.objectStore("metadata").get(extId);
+      req.onsuccess = function(e) { cb(null, e.target.result); };
+      req.onerror   = function(e) { cb(e.target.error); };
+    } catch(err) { cb(err); }
+  }
+
+  function writeExtension(db, infoWithSize, content, cb) {
+    try {
+      var tx = db.transaction(["metadata","extensions"], "readwrite");
+      tx.objectStore("metadata").put(infoWithSize);
+      tx.objectStore("extensions").put({ info: infoWithSize, content: content });
+      tx.oncomplete = function() { cb(null); };
+      tx.onerror    = function(e) { cb(e.target.error); };
+    } catch(err) { cb(err); }
+  }
+
+  function installExtension(db, ext, cb) {
+    alreadyInstalled(db, ext.info.id, function(checkErr, existing) {
+      if (checkErr) {
+        console.error("[" + ext.logTag + "] check failed", checkErr);
+        cb(false);
+        return;
+      }
+      if (existing && existing.version === ext.info.version) {
+        console.info("[" + ext.logTag + "] already installed (v" + existing.version + "), skipping");
+        cb(false);
+        return;
+      }
+      if (existing) {
+        console.info("[" + ext.logTag + "] version changed " + existing.version + " -> " + ext.info.version + ", updating");
+      }
+
+      fetch(ext.url)
+        .then(function(r) { return r.arrayBuffer(); })
+        .then(function(buf) {
+          var bytes = new Uint8Array(buf);
+          var info = Object.assign({}, ext.info, { size: bytes.length });
+          writeExtension(db, info, bytes, function(writeErr) {
+            if (writeErr) {
+              console.error("[" + ext.logTag + "] write failed", writeErr);
+              cb(false);
+              return;
+            }
+            console.info("[" + ext.logTag + "] installed");
+            cb(true);
+          });
+        })
+        .catch(function(fetchErr) {
+          console.error("[" + ext.logTag + "] fetch failed", fetchErr);
+          cb(false);
+        });
+    });
+  }
+
+  openDB(function(err, db) {
+    if (err) {
+      console.error("[extensions] IDB open failed", err);
+      return;
+    }
+
+    var installedAny = false;
+    var idx = 0;
+
+    function next() {
+      if (idx >= EXTENSIONS.length) {
+        if (installedAny && !sessionStorage.getItem("extensions-auto-installed")) {
+          sessionStorage.setItem("extensions-auto-installed", "1");
+          location.reload();
+        }
+        return;
+      }
+
+      var ext = EXTENSIONS[idx++];
+      installExtension(db, ext, function(installed) {
+        installedAny = installedAny || installed;
+        next();
+      });
+    }
+
+    next();
+  });
+})();
+</script>'
+
+echo "${patched/"</body>"/"${auto_install_script}</body>"}" > /src/index.html
+
+# ── Start Caddy with the extensions/ directory also accessible ────────────────
+# Symlink /extensions into the web root so Caddy serves it.
+mkdir -p /www/extensions
+ln -sf /www/extensions /src/extensions 2>/dev/null || true
+
+exec "$@"
+ENTRYPOINT_SH
+
+RUN chmod +x /entrypoint.sh
+
+ENTRYPOINT ["/bin/sh", "/entrypoint.sh"]
+CMD ["caddy", "file-server", "--listen", ":8080"]
+
+# # From this directory (docker/lichtblick)
+# docker build -f Dockerfile.lichtblick_extensions -t lichtblick-extensions .
+# docker run -d --rm -p 8080:8080 --name lichtblick-extensions lichtblick-extensions

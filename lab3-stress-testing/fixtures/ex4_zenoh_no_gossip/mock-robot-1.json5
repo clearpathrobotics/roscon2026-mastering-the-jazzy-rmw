@@ -1,0 +1,6 @@
+{
+  mode: "client",
+  connect: { endpoints: ["tcp/localhost:7447"] },
+  timestamping: { enabled: true },
+  transport: { shared_memory: { enabled: false } },
+}

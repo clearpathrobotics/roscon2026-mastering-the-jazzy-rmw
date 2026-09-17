@@ -1,0 +1,192 @@
+# benchmark.yaml — executable configuration for the Lab 4 RMW benchmark.
+#
+# Each runnable template's `harness` declares the executor selected by
+# `run_sweep.sh`, the Docker Compose profile it starts, the result topology and
+# workload labels, and whether it applies a scenario's per-replica netem. This
+# keeps the deployment decision in one place instead of inferring it from A/B.
+# Lab 3's live routed shared-AP deployment is configured by its own scripts.
+#
+# Consumed by:
+#   scripts/workshop.sh run   — resolves template/scenario/RMW into a concrete run
+#   scripts/*analysis*        — per-topic-class metric extraction (drop%, p99, freshness)
+#   scripts/*pugh*            — weighted decision scoring per template
+#
+# --- RMW implementations under test ----------------------------------------
+# A `zenoh_config` (path inside the container) is applied via ZENOH_SESSION_CONFIG_URI
+# to the fleet replicas for that variant only. Lets the same RMW appear as
+# multiple tuned variants that each run independently (e.g. `--rmw zenoh` vs
+# `--rmw zenoh-lowlat`).
+rmws:
+  cyclone: { impl: rmw_cyclonedds_cpp, label: "Cyclone DDS" }
+  fastdds: { impl: rmw_fastrtps_cpp,   label: "Fast DDS" }
+  # Lab 1's default_zenoh profile provides the router-less peer mesh used by
+  # the normal fleet path.
+  zenoh:
+    impl: rmw_zenoh_cpp
+    label: "Zenoh"
+    zenoh_config: ""
+  # Client -> dedicated zenoh-router over a single unicast link with the
+  # `lowlatency` transport (no batching/QoS mux). A config path containing
+  # "router" makes run_sweep start the zenoh-router container for this cell.
+  zenoh-lowlat:
+    impl: rmw_zenoh_cpp
+    label: "Zenoh (low-latency)"
+    zenoh_config: /scripts/lab4/discovery/zenoh/low-latency-router.json5
+
+# --- Benchmark templates -----------------------------------------------------
+# `harness.impairment` is an execution mode, not a netem profile name:
+#   none                - do not shape this template's Docker traffic
+#   per_replica_netem   - apply the selected scenario's netem profile and optional
+#                          rate cap to ingress and egress of every fleet replica
+# Lab 3's shared AP queue is intentionally not an option here; it is configured
+# by lab3-stress-testing/scripts/ap_shape.sh.
+templates:
+  A:
+    name: "Two-Container Synthetic Baseline"
+    scenarios: [S0]
+    harness:
+      executor: synthetic      # performance_test pub/sub + AddTwoInts round-trip
+      compose_profile: rmw     # ros2-<rmw> + ros2-<rmw>-b on robots-net
+      topology: bridge
+      workload: synthetic
+      impairment: none         # no netem is applied to the A/B bridge pair
+
+  B:
+    name: "Fleet MCAP Replay"
+    scenarios: [S0, S1, S2, S3, constrained]
+    harness:
+      executor: mcap           # class_probe.py measures replayed topic classes
+      compose_profile: fleet   # scaled `fleet` replicas on fleet-net
+      topology: bridge
+      workload: bag
+      impairment: per_replica_netem
+
+# Result labels used by comparison.py and pugh.py.
+topologies:
+  bridge:
+    name: "Docker bridge"
+
+# --- Topic classes (workload types; each fails differently under stress) -----
+topic_classes:
+  sensor:
+    id: 1
+    name: "High-bandwidth sensor streams"
+    purpose: "network saturation, packet loss, fragmentation"
+    examples: [/camera/image_raw, /points, /depth]
+    # regex (re.search) matched against live/replayed topic names -> this class
+    match: ['/image', '/points', '/depth', '/scan', 'costmap$']
+    characteristics: [high_throughput, large_messages, continuous, latency_sensitive_not_reliable]
+    qos: { reliability: best_effort, history: keep_last, depth: 5 }
+    primary_metric: sensor_drop_pct
+    fails_under:
+      loss: "partial loss (dropped frames)"
+      latency: "stale frames"
+      congestion: "hogs bandwidth"
+
+  control:
+    id: 2
+    name: "Control / Command (critical path)"
+    purpose: "reliability tradeoffs and tail latency (p99) become obvious"
+    examples: [/cmd_vel, nav_action_goal, pause_resume_service]
+    match: ['/cmd_vel']
+    characteristics: [low_bandwidth, must_be_delivered, highly_latency_sensitive, often_blocking]
+    qos: { reliability: reliable, history: keep_last, depth: 1 }
+    primary_metric: control_p99_ms
+    fails_under:
+      loss: "retransmit -> delay"
+      latency: "unacceptable delay"
+      congestion: "starved of bandwidth"
+
+  state:
+    id: 3
+    name: "State / Coordination"
+    purpose: "freshness vs reliability tradeoff becomes visible"
+    examples: [/tf, /robot_pose, /battery_state, /heartbeat]
+    match: ['/tf$', '/odom', '/localization/fix', '/pose', '/battery']
+    characteristics: [medium_frequency, loss_tolerant, freshness_matters]
+    # best_effort OR reliable depending on usage — freshness usually beats guaranteed delivery
+    qos: { reliability: best_effort, history: keep_last, depth: 10 }
+    primary_metric: state_freshness_ms
+    fails_under:
+      loss: "partial loss"
+      latency: "stale poses"
+      congestion: "degrades"
+
+# --- Scenarios (stressors) ---------------------------------------------------
+# `netem` names a profile from Lab 2's netem_profile.sh. `netem_link_rate`
+# (optional) layers a bandwidth cap on top via that script's LINK_RATE.
+# `none` = clean network (no impairment applied).
+scenarios:
+  S0:
+    name: "Reference run"
+    purpose: "clean-network baseline, reproducible across templates - this is also Lab 4's benchmarking cell (no impairment, compare RMWs on a controlled workload)"
+    netem: none
+    templates: [A, B]
+
+  S1:
+    name: "Load scaling"
+    purpose: "expose compute / system limits (queueing, CPU, serialization)"
+    netem: none
+    scale: [1, 3]              # configured fleet replica counts (not playback multipliers)
+    templates: [B]
+
+  S2:
+    name: "Delay + bursty loss"
+    purpose: "expose QoS / transport tradeoffs under delay and bursty loss (reliable retransmit vs best-effort drop)"
+    netem: heavy                # netem_profile.sh: 30ms+-10ms delay, 5% bursty loss
+    templates: [B]
+
+  S3:
+    name: "Healthy link + bandwidth cap"
+    purpose: "expose congestion under the healthy profile plus a 20 Mbit/s per-link cap"
+    netem: healthy               # bridge: netem_profile.sh "healthy" link (5ms+-1ms delay, 0.2% bursty loss)
+    netem_link_rate: 20mbit     # LINK_RATE layers the cap on top of the healthy profile
+    templates: [B]
+
+  constrained:
+    name: "Constrained (combined loss + latency + bandwidth)"
+    purpose: "bad WiFi — jitter, mild loss, constrained (not saturated) link"
+    # This combines delay, bursty loss, and a per-link rate cap. Milder raw loss than
+    # `heavy`/`severe` is intentional, but the observed delivery result depends on
+    # the workload and environment and must be measured.
+    netem: constrained           # bridge: netem_profile.sh "constrained" - 50ms+-15ms, 1% loss
+    netem_link_rate: 50mbit
+    templates: [B]
+
+# --- Metrics collected per run ----------------------------------------------
+# `better` drives normalization for the Pugh scorer (lower or higher is better).
+metrics:
+  sensor_drop_pct:    { label: "Sensor drops (%)",             class: sensor,  unit: "%",   better: lower }
+  sensor_estimated_delivery_shortfall_pct: { label: "Estimated delivery shortfall (%)", class: sensor, unit: "%", better: lower }
+  sensor_received_expected_ratio: { label: "Received / estimated expected ratio", class: sensor, unit: "ratio", better: higher }
+  control_p99_ms:     { label: "Control latency p99 (ms)",     class: control, unit: "ms",  better: lower }
+  control_arrival_gap_p99_ms: { label: "Control arrival gap p99 (ms)", class: control, unit: "ms", better: lower }
+  state_freshness_ms: { label: "State freshness (ms)",         class: state,   unit: "ms",  better: lower }
+  state_arrival_gap_p95_ms: { label: "State arrival gap p95 (ms)", class: state, unit: "ms", better: lower }
+  control_max_silence_ms: { label: "Control maximum silence (ms)", class: control, unit: "ms", better: lower }
+  state_max_silence_ms: { label: "State maximum silence (ms)", class: state, unit: "ms", better: lower }
+  throughput_mbps:    { label: "Throughput (Mb/s)",            class: sensor,  unit: "Mb/s", better: higher }
+  cpu_pct:            { label: "CPU (%)",                       class: all,     unit: "%",   better: lower }
+
+# --- Weighted Pugh decision matrix ------------------------------------------
+# Per-template criterion weights on a 1-5 scale. The scorer combines these with
+# measured per-RMW metrics to produce a weighted score per (template, RMW).
+#
+# Each criterion is either:
+#   metric: <name>   auto-scored from a measured metric (see `metrics` above), or
+#   manual: true     scored by hand (defaults to neutral 3/5; override via a
+#                    manual_scores.yaml alongside the run's results).
+decision:
+  criteria:
+    latency_p99:          { label: "Latency (p99)",                       better: lower,  metric: control_p99_ms }
+    data_freshness:       { label: "Data Freshness",                      better: lower,  metric: state_freshness_ms }
+    reliability:          { label: "Reliability (delivery)",              better: lower,  metric: sensor_drop_pct }
+    loss_jitter_behaviour: { label: "Behaviour under loss/jitter",          better: higher, manual: true }
+    throughput_eff:       { label: "Throughput / bandwidth efficiency",   better: higher, metric: throughput_mbps }
+    cpu_overhead:         { label: "CPU overhead",                        better: lower,  metric: cpu_pct }
+    ease_config:          { label: "Ease of config & debugging",          better: higher, manual: true }
+    discovery_robust:     { label: "Discovery / connectivity robustness", better: higher, manual: true }
+  # template -> criterion -> weight (1-5)
+  weights:
+    A: { latency_p99: 4, data_freshness: 4, reliability: 3, loss_jitter_behaviour: 1, throughput_eff: 4, cpu_overhead: 5, ease_config: 4, discovery_robust: 2 }
+    B: { latency_p99: 5, data_freshness: 5, reliability: 5, loss_jitter_behaviour: 5, throughput_eff: 4, cpu_overhead: 3, ease_config: 3, discovery_robust: 4 }

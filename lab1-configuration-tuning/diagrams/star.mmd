@@ -1,0 +1,15 @@
+graph LR
+  subgraph Browser["Your browser"]
+    LB["Lichtblick web UI :8080"]
+  end
+  Bridge["Foxglove bridge :8765"]
+  Obs["observer - hub / vantage"]
+  R1["mock-robot-1 (a300)"]
+  R2["mock-robot-2 (r100)"]
+  R3["mock-robot-3 (j100)"]
+
+  LB -->|ws://localhost:8765| Bridge
+  Bridge --> Obs
+  Obs ---|spoke mock-b1 172.30.11.0/24| R1
+  Obs ---|spoke mock-b2 172.30.12.0/24| R2
+  Obs ---|spoke mock-b3 172.30.13.0/24| R3

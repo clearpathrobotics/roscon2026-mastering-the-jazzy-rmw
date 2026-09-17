@@ -1,0 +1,17 @@
+# One line per fixture, shown in the viewer's file list. Hand-maintained, unlike
+# manifest.tsv: keep this in sync with fixtures/README.md's tables when either changes.
+fixture	description
+qos-mismatch	Two endpoints announce the same topic, one best-effort and one reliable. They never match.
+domain-mismatch	Two participants on different domains, discovery never crosses.
+multicast-storm	1604 SPDP frames from 18 participants, drowning out everything else.
+nothing-on-wire	A subscriber found nothing on a bus carrying 24991 RTPS frames. The publisher was healthy the whole time.
+multicast-blocked	One robot's multicast never reaches the capture point.
+node-death	Two robots stop announcing while a third runs on, and neither sends a departure notice.
+fragment-loss	Fragmented camera frames that never reassemble.
+reliable-vs-besteffort	The same camera frames on two topics, differing only in reliability.
+zenoh-no-router	Eight connection attempts, seven refused, and no Zenoh at all.
+zenoh-router-killed	The Zenoh router dies mid-session, sessions close, then reconnection succeeds.
+healthy-fastdds	A healthy Fast DDS fleet discovering and running, nothing wrong.
+healthy-cyclone	A short, healthy Cyclone capture, good for a first look.
+healthy-cyclone-discovery	Healthy Cyclone endpoint discovery, the reference for what SEDP should look like.
+healthy-zenoh	A healthy Zenoh session declaring its key expressions normally.

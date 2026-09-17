@@ -21,6 +21,7 @@ MIN_COMPOSE="2.20"
 MIN_DISK_GB=15
 MIN_RAM_GB=16
 
+# cspell:disable-next-line
 if [ -t 1 ] && [ -z "${NO_COLOR:-}" ]; then
     RED=$'\033[31m'; GRN=$'\033[32m'; YEL=$'\033[33m'; NC=$'\033[0m'
 else
@@ -210,7 +211,7 @@ fi
 
 netem="unknown"; ifb="unknown"; shaping_note=""
 
-head_ "Network shaping (part of Lab 3)"
+head_ "Network shaping"
 case "$os_kind" in
     linux|wsl2)
         if mod_loaded sch_netem || mod_builtin sch_netem; then
@@ -322,14 +323,14 @@ case "$verdict" in
         ;;
     egress-only)
         ok "Docker checks passed."
-        info "Lab 3 will run with egress-only shaping (sch_netem is available)."
+        info "The network-shaping exercises will run with egress-only shaping (sch_netem is available)."
         info "sch_htb, ifb and act_mirred are missing, so the return path isn't shaped."
         [ -n "$shaping_note" ] && warn "For bidirectional shaping too: $shaping_note"
         ;;
     no-shaping)
         ok "Docker checks passed."
         info "The host check could not find sch_netem. Run the container test below"
-        info "before concluding that the Lab 3 network-degradation step will not run."
+        info "before concluding that the network-degradation exercises will not run."
         [ -n "$shaping_note" ] && info "To turn it on: $shaping_note"
         ;;
     no-docker)

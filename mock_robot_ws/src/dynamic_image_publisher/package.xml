@@ -1,0 +1,32 @@
+<?xml version="1.0"?>
+<package format="3">
+  <name>dynamic_image_publisher</name>
+  <version>0.1.0</version>
+  <description>
+    Publishes a live top-down view of the mock world (walls + obstacle) with the
+    selected robot's pre-rendered top-down sprite overlaid at its tf2 pose. Replaces
+    the static-jpg image publisher with a dynamic, video-like camera stream. Runtime
+    is numpy-only: assets are pre-rendered offline (see tools/) and loaded as .npy.
+  </description>
+  <maintainer email="workshop@example.com">Workshop Team</maintainer>
+  <license>Apache-2.0</license>
+
+  <buildtool_depend>ament_python</buildtool_depend>
+
+  <exec_depend>rclpy</exec_depend>
+  <exec_depend>tf2_ros</exec_depend>
+  <exec_depend>sensor_msgs</exec_depend>
+  <exec_depend>python3-numpy</exec_depend>
+  <exec_depend>python3-psutil</exec_depend>
+  <exec_depend>urdf_raycast_sensors</exec_depend>
+  <exec_depend>foxglove_bridge</exec_depend>
+
+  <test_depend>ament_copyright</test_depend>
+  <test_depend>ament_flake8</test_depend>
+  <test_depend>ament_pep257</test_depend>
+  <test_depend>python3-pytest</test_depend>
+
+  <export>
+    <build_type>ament_python</build_type>
+  </export>
+</package>

@@ -1,0 +1,78 @@
+<?xml version="1.0"?>
+<!--
+  Demo obstacle world for urdf_raycast_sensors.
+
+  A rectangular 10 m x 8 m room built from four thin box "walls" plus one interior
+  box obstacle, all attached to a `world` root by fixed joints. The virtual laser is
+  NOT part of this description: it is published as a moving `world -> laser` transform
+  by the demo_mover node, so the sensor link can be driven around independently.
+-->
+<robot xmlns:xacro="http://www.ros.org/wiki/xacro" name="raycast_demo_walls">
+
+  <!-- Namespace prefix so multiple robots can each own a distinct world tree. -->
+  <xacro:arg name="tf_prefix" default="robot"/>
+  <xacro:property name="tf_prefix" value="$(arg tf_prefix)"/>
+
+  <xacro:property name="room_x" value="10.0"/>
+  <xacro:property name="room_y" value="8.0"/>
+  <xacro:property name="wall_h" value="1.0"/>
+  <xacro:property name="wall_t" value="0.1"/>
+
+  <material name="wall_grey"><color rgba="0.6 0.6 0.6 1.0"/></material>
+  <material name="obstacle_red"><color rgba="0.8 0.2 0.2 1.0"/></material>
+
+  <link name="${tf_prefix}/world"/>
+
+  <!-- Macro: one box wall link + fixed joint to world. -->
+  <xacro:macro name="wall" params="name x y z sx sy sz *material">
+    <link name="${tf_prefix}/${name}">
+      <visual>
+        <geometry><box size="${sx} ${sy} ${sz}"/></geometry>
+        <xacro:insert_block name="material"/>
+      </visual>
+      <collision>
+        <geometry><box size="${sx} ${sy} ${sz}"/></geometry>
+      </collision>
+    </link>
+    <joint name="${tf_prefix}/${name}_joint" type="fixed">
+      <parent link="${tf_prefix}/world"/>
+      <child link="${tf_prefix}/${name}"/>
+      <origin xyz="${x} ${y} ${z}" rpy="0 0 0"/>
+    </joint>
+  </xacro:macro>
+
+  <!-- Four perimeter walls (centred on the room origin). -->
+  <xacro:wall name="wall_north" x="0" y="${room_y/2}" z="${wall_h/2}"
+              sx="${room_x}" sy="${wall_t}" sz="${wall_h}">
+    <material name="wall_grey"/>
+  </xacro:wall>
+  <xacro:wall name="wall_south" x="0" y="${-room_y/2}" z="${wall_h/2}"
+              sx="${room_x}" sy="${wall_t}" sz="${wall_h}">
+    <material name="wall_grey"/>
+  </xacro:wall>
+  <xacro:wall name="wall_east" x="${room_x/2}" y="0" z="${wall_h/2}"
+              sx="${wall_t}" sy="${room_y}" sz="${wall_h}">
+    <material name="wall_grey"/>
+  </xacro:wall>
+  <xacro:wall name="wall_west" x="${-room_x/2}" y="0" z="${wall_h/2}"
+              sx="${wall_t}" sy="${room_y}" sz="${wall_h}">
+    <material name="wall_grey"/>
+  </xacro:wall>
+
+  <!-- One interior obstacle, rotated 30 deg about z to exercise oriented boxes. -->
+  <link name="${tf_prefix}/obstacle_1">
+    <visual>
+      <geometry><box size="1.0 1.0 1.0"/></geometry>
+      <material name="obstacle_red"/>
+    </visual>
+    <collision>
+      <geometry><box size="1.0 1.0 1.0"/></geometry>
+    </collision>
+  </link>
+  <joint name="${tf_prefix}/obstacle_1_joint" type="fixed">
+    <parent link="${tf_prefix}/world"/>
+    <child link="${tf_prefix}/obstacle_1"/>
+    <origin xyz="2.0 1.0 0.5" rpy="0 0 0.5236"/>
+  </joint>
+
+</robot>

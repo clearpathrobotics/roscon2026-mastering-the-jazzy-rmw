@@ -1,0 +1,39 @@
+# Standalone, opt-in Netdata service. Orthogonal to any topology: Netdata is
+# host-namespaced and sees workshop process groups regardless of the topology.
+# The local image bakes in the Lab 3 chart and StatsD configuration. Bring it
+# up on its own:
+#   docker compose --profile netdata -f docker/netdata/netdata.yml up -d netdata
+#
+# Shares the roscon2026-jazzy-rmw project name so a `--profile '*' down
+# --remove-orphans` of the flat stack still tears it down.
+name: roscon2026-jazzy-rmw
+
+services:
+  # netdata, opt-in via `--profile netdata`, serves :19999 for live workshop
+  # process-group and StatsD observability.
+  netdata:
+    image: ghcr.io/clearpathrobotics/roscon2026-mastering-the-jazzy-rmw:netdata-latest
+    build: .
+    # Pull the published image; `docker compose build` still rebuilds it locally.
+    pull_policy: missing
+    container_name: netdata
+    hostname: netdata
+    profiles: [netdata]
+    network_mode: host
+    pid: host
+    restart: unless-stopped
+    cap_add: [SYS_PTRACE, SYS_ADMIN]
+    security_opt: [apparmor=unconfined]
+    volumes:
+      - netdatalib:/var/lib/netdata
+      - netdatacache:/var/cache/netdata
+      - /etc/passwd:/host/etc/passwd:ro
+      - /etc/group:/host/etc/group:ro
+      - /etc/os-release:/host/etc/os-release:ro
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+    environment:
+      - DOCKER_HOST=unix:///var/run/docker.sock
+
+volumes:
+  netdatalib: {}
+  netdatacache: {}

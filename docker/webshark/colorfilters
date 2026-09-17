@@ -1,0 +1,33 @@
+# Wireshark colouring rules for ROS 2 middleware traffic.
+#
+# A personal colorfilters file REPLACES the stock set rather than merging with it, so the
+# generic rules worth keeping are repeated here. Verified: with a one-rule file in place,
+# every non-matching frame came back with no colour at all. "Bad TCP" and "Checksum errors"
+# below are Wireshark's own defaults, carried over unchanged; Wireshark is GPL-2.0-or-later.
+#
+# sharkd applies these server-side and returns bg/fg per frame. webshark-app.js paints them
+# onto the row. First match wins, so the failure rules have to stay above the generic ones.
+#
+# Format is @name@filter@[bg r,g,b][fg r,g,b], 16-bit channels.
+
+# Failures first. rtps.sm.acknack_analysis == 3 is the ACKNACK that actually reported a gap.
+# Most ACKNACKs are the protocol acknowledging normal receipt and are not worth colouring.
+@RMW repair@rtps.sm.acknack_analysis == 3 || tcp.analysis.retransmission@[65535,40000,40000][0,0,0]
+@Bad TCP@tcp.analysis.flags && !tcp.analysis.window_update && !tcp.analysis.keep_alive && !tcp.analysis.keep_alive_ack@[65535,25000,25000][0,0,0]
+@Checksum errors@eth.fcs.status=="Bad" || ip.checksum.status=="Bad" || tcp.checksum.status=="Bad" || udp.checksum.status=="Bad"@[65535,25000,25000][0,0,0]
+
+# Session setup and teardown, so a Zenoh handshake is visible without reading the Info column.
+@TCP SYN@tcp.flags.syn == 1 && tcp.flags.ack == 0@[40000,65535,40000][0,0,0]
+@TCP FIN/RST@tcp.flags.fin == 1 || tcp.flags.reset == 1@[20000,20000,45000][65535,65535,65535]
+
+# Discovery, one colour for all three mechanisms rather than three near-identical ones.
+@Discovery@rtps.sm.wrEntityId == 0x000100c2 || (rtps.sm.id == 0x15 && (rtps.sm.wrEntityId == 0x000003c2 || rtps.sm.wrEntityId == 0x000004c2)) || zenoh.body.frame.payload.body.declare.body.declare_key_expr.wire_expr@[56000,60000,65535][0,0,0]
+
+# Fragments, because a large message failing while small ones work is its own symptom.
+@Fragments@rtps.sm.id == 0x16@[65535,58000,40000][0,0,0]
+
+# Fallbacks, so a frame no rule above matched is still visibly a frame of a known protocol.
+@RTPS@rtps@[61000,61000,61000][0,0,0]
+@Zenoh@zenoh@[61000,63000,61000][0,0,0]
+@ARP@arp@[55000,55000,40000][0,0,0]
+@ICMP@icmp || icmpv6@[60000,52000,60000][0,0,0]

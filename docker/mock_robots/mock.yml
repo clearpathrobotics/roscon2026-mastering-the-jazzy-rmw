@@ -1,0 +1,234 @@
+name: roscon2026-jazzy-rmw
+
+x-base: &base
+  init: true
+  stdin_open: true
+  tty: true
+  cap_add: [NET_ADMIN]
+
+x-ubuntu: &ubuntu
+  <<: *base
+  image: ghcr.io/clearpathrobotics/roscon2026-mastering-the-jazzy-rmw:ubuntu-headless-latest
+  pull_policy: missing
+  # The named robots build their mounted workspace on startup. Leave scheduler
+  # capacity for the scaled fleet, Netdata, and its host-side publisher.
+  cpus: ${MOCK_NAMED_ROBOT_CPUS:-0.5}
+  build:
+    context: ../../docker
+    dockerfile: ubuntu-headless/Dockerfile
+
+# mock services override `networks` in their own definitions, so
+# robots-net is omitted here — only the mock star topology is needed.
+x-ubuntu-bridge: &ubuntu-bridge
+  <<: *ubuntu
+
+x-ubuntu-env: &ubuntu-env
+  ROS_DOMAIN_ID: "${ROS_DOMAIN_ID:-25}"
+  CYCLONEDDS_URI: file:///rmw_configuration/cyclone/mock-observer.xml
+
+# Shared robot entrypoint: build the workspace, then launch the mock robot.
+# When MOCK_USE_NAV2=true the robot is re-rooted (use_nav2:=true) and the
+# mock_robot_nav2 stack (Nav2 + SLAM/AMCL) is launched alongside it.
+x-mock-robot-command: &mock-robot-command
+  - bash
+  - -lc
+  - |
+    set -e
+    source /opt/ros/jazzy/setup.bash
+    cd /ws
+    colcon build --symlink-install --packages-select mock_sensor_tools mock_robot_description mock_robot_bringup urdf_raycast_sensors dynamic_image_publisher mock_robot_nav2
+    source install/setup.bash
+    if [ "$${MOCK_USE_NAV2}" = "true" ]; then
+      ros2 launch mock_robot_bringup mock_robot.launch.py \
+        robot_name:=$${MOCK_ROBOT_NAME} \
+        frame_id:=$${MOCK_FRAME_ID} \
+        robot_model:=$${MOCK_ROBOT_MODEL} \
+        sensor_topics:=$${MOCK_SENSOR_TOPICS} \
+        sensor_count:=$${MOCK_SENSOR_COUNT} \
+        use_mecanum:=$${MOCK_USE_MECANUM} \
+        use_nav2:=true &
+      exec ros2 launch mock_robot_nav2 nav2_bringup.launch.py \
+        robot_name:=$${MOCK_ROBOT_NAME} \
+        frame_id:=$${MOCK_FRAME_ID} \
+        robot_model:=$${MOCK_ROBOT_MODEL} \
+        use_mecanum:=$${MOCK_USE_MECANUM} \
+        slam:=$${MOCK_NAV2_SLAM}
+    else
+      exec ros2 launch mock_robot_bringup mock_robot.launch.py \
+        robot_name:=$${MOCK_ROBOT_NAME} \
+        frame_id:=$${MOCK_FRAME_ID} \
+        robot_model:=$${MOCK_ROBOT_MODEL} \
+        sensor_topics:=$${MOCK_SENSOR_TOPICS} \
+        sensor_count:=$${MOCK_SENSOR_COUNT} \
+        use_mecanum:=$${MOCK_USE_MECANUM} \
+        use_nav2:=false
+    fi
+
+services:
+
+  # `--profile mock`: explicitly named mock robot containers.
+  # This avoids `--scale` so hostnames and robot namespaces are predictable.
+  mock-robot-1:
+    <<: *ubuntu-bridge
+    container_name: mock-robot-1
+    hostname: mock-robot-1
+    networks:
+      mock-b0:
+        ipv4_address: 172.30.10.11
+      mock-b1:
+        ipv4_address: 172.30.11.11
+    profiles: [mock]
+    cap_add: [NET_ADMIN, NET_RAW]
+    environment:
+      <<: *ubuntu-env
+      RMW_IMPLEMENTATION: ${MOCK_ROBOT_1_RMW_IMPLEMENTATION:-rmw_cyclonedds_cpp}
+      CYCLONEDDS_URI: ${MOCK_ROBOT_1_CYCLONEDDS_URI:-file:///rmw_configuration/cyclone/mock-robot-1.xml}
+      FASTRTPS_DEFAULT_PROFILES_FILE: ${MOCK_ROBOT_1_FASTRTPS_DEFAULT_PROFILES_FILE:-/rmw_configuration/fast/mock-robot-1.xml}
+      ZENOH_SESSION_CONFIG_URI: ${MOCK_ROBOT_1_ZENOH_SESSION_CONFIG_URI:-/rmw_configuration/zenoh/mock-robot-1.json5}
+      MOCK_ROBOT_NAME: ${MOCK_ROBOT_1_NAME:-mock_robot_1}
+      MOCK_FRAME_ID: ${MOCK_ROBOT_1_FRAME_ID:-robot1}
+      MOCK_ROBOT_MODEL: ${MOCK_ROBOT_1_MODEL:-a300}
+      MOCK_SENSOR_TOPICS: ${MOCK_SENSOR_TOPICS:-/camera/image_raw,/scan}
+      MOCK_SENSOR_COUNT: ${MOCK_SENSOR_COUNT:-1}
+      MOCK_USE_MECANUM: ${MOCK_ROBOT_1_USE_MECANUM:-${MOCK_USE_MECANUM:-false}}
+      MOCK_USE_NAV2: ${MOCK_ROBOT_1_USE_NAV2:-${MOCK_USE_NAV2:-false}}
+      MOCK_NAV2_SLAM: ${MOCK_ROBOT_1_NAV2_SLAM:-${MOCK_NAV2_SLAM:-true}}
+    volumes:
+      - ../rmw_configuration:/rmw_configuration:ro
+      - ../../mock_robot_ws/src:/ws/src:ro
+    command: *mock-robot-command
+
+  mock-robot-2:
+    <<: *ubuntu-bridge
+    container_name: mock-robot-2
+    hostname: mock-robot-2
+    networks:
+      mock-b0:
+        ipv4_address: 172.30.10.12
+      mock-b2:
+        ipv4_address: 172.30.12.12
+    profiles: [mock]
+    cap_add: [NET_ADMIN, NET_RAW]
+    environment:
+      <<: *ubuntu-env
+      RMW_IMPLEMENTATION: ${MOCK_ROBOT_2_RMW_IMPLEMENTATION:-rmw_cyclonedds_cpp}
+      CYCLONEDDS_URI: ${MOCK_ROBOT_2_CYCLONEDDS_URI:-file:///rmw_configuration/cyclone/mock-robot-2.xml}
+      FASTRTPS_DEFAULT_PROFILES_FILE: ${MOCK_ROBOT_2_FASTRTPS_DEFAULT_PROFILES_FILE:-/rmw_configuration/fast/mock-robot-2.xml}
+      ZENOH_SESSION_CONFIG_URI: ${MOCK_ROBOT_2_ZENOH_SESSION_CONFIG_URI:-/rmw_configuration/zenoh/mock-robot-2.json5}
+      MOCK_ROBOT_NAME: ${MOCK_ROBOT_2_NAME:-mock_robot_2}
+      MOCK_FRAME_ID: ${MOCK_ROBOT_2_FRAME_ID:-robot2}
+      MOCK_ROBOT_MODEL: ${MOCK_ROBOT_2_MODEL:-r100}
+      MOCK_SENSOR_TOPICS: ${MOCK_SENSOR_TOPICS:-/camera/image_raw,/scan}
+      MOCK_SENSOR_COUNT: ${MOCK_SENSOR_COUNT:-1}
+      MOCK_USE_MECANUM: ${MOCK_ROBOT_2_USE_MECANUM:-${MOCK_USE_MECANUM:-true}}
+      MOCK_USE_NAV2: ${MOCK_ROBOT_2_USE_NAV2:-${MOCK_USE_NAV2:-false}}
+      MOCK_NAV2_SLAM: ${MOCK_ROBOT_2_NAV2_SLAM:-${MOCK_NAV2_SLAM:-true}}
+    volumes:
+      - ../rmw_configuration:/rmw_configuration:ro
+      - ../../mock_robot_ws/src:/ws/src:ro
+    command: *mock-robot-command
+
+  mock-robot-3:
+    <<: *ubuntu-bridge
+    container_name: mock-robot-3
+    hostname: mock-robot-3
+    networks:
+      mock-b0:
+        ipv4_address: 172.30.10.13
+      mock-b3:
+        ipv4_address: 172.30.13.13
+    profiles: [mock]
+    cap_add: [NET_ADMIN, NET_RAW]
+    environment:
+      <<: *ubuntu-env
+      RMW_IMPLEMENTATION: ${MOCK_ROBOT_3_RMW_IMPLEMENTATION:-rmw_cyclonedds_cpp}
+      CYCLONEDDS_URI: ${MOCK_ROBOT_3_CYCLONEDDS_URI:-file:///rmw_configuration/cyclone/mock-robot-3.xml}
+      FASTRTPS_DEFAULT_PROFILES_FILE: ${MOCK_ROBOT_3_FASTRTPS_DEFAULT_PROFILES_FILE:-/rmw_configuration/fast/mock-robot-3.xml}
+      ZENOH_SESSION_CONFIG_URI: ${MOCK_ROBOT_3_ZENOH_SESSION_CONFIG_URI:-/rmw_configuration/zenoh/mock-robot-3.json5}
+      MOCK_ROBOT_NAME: ${MOCK_ROBOT_3_NAME:-mock_robot_3}
+      MOCK_FRAME_ID: ${MOCK_ROBOT_3_FRAME_ID:-robot3}
+      MOCK_ROBOT_MODEL: ${MOCK_ROBOT_3_MODEL:-j100}
+      MOCK_SENSOR_TOPICS: ${MOCK_SENSOR_TOPICS:-/camera/image_raw,/scan}
+      MOCK_SENSOR_COUNT: ${MOCK_SENSOR_COUNT:-1}
+      MOCK_USE_MECANUM: ${MOCK_ROBOT_3_USE_MECANUM:-${MOCK_USE_MECANUM:-false}}
+      MOCK_USE_NAV2: ${MOCK_ROBOT_3_USE_NAV2:-${MOCK_USE_NAV2:-false}}
+      MOCK_NAV2_SLAM: ${MOCK_ROBOT_3_NAV2_SLAM:-${MOCK_NAV2_SLAM:-true}}
+    volumes:
+      - ../rmw_configuration:/rmw_configuration:ro
+      - ../../mock_robot_ws/src:/ws/src:ro
+    command: *mock-robot-command
+
+  # `--profile mock`: operator-side container on robots-net.
+  # Builds the same workspace so observer-side tools and custom nodes are available.
+  observer:
+    <<: *base
+    image: ghcr.io/clearpathrobotics/roscon2026-mastering-the-jazzy-rmw:ubuntu-headless-latest
+    pull_policy: missing
+    build:
+      context: ../../docker
+      dockerfile: ubuntu-headless/Dockerfile
+    container_name: observer
+    networks:
+      mock-b0:
+        ipv4_address: 172.30.10.20
+      mock-b1:
+        ipv4_address: 172.30.11.20
+      mock-b2:
+        ipv4_address: 172.30.12.20
+      mock-b3:
+        ipv4_address: 172.30.13.20
+    profiles: [mock]
+    cap_add: [NET_ADMIN, NET_RAW]
+    ports:
+      # 0.0.0.0 supports a server setup reachable over the LAN (point ds.url at
+      # this host's LAN IP); use 127.0.0.1 instead if you want loopback-only access.
+      - "0.0.0.0:${FOXGLOVE_BRIDGE_PORT:-8765}:8765"
+    environment:
+      <<: *ubuntu-env
+      RMW_IMPLEMENTATION: ${OBSERVER_RMW_IMPLEMENTATION:-rmw_cyclonedds_cpp}
+      CYCLONEDDS_URI: ${OBSERVER_CYCLONEDDS_URI:-file:///rmw_configuration/cyclone/mock-observer.xml}
+      FASTRTPS_DEFAULT_PROFILES_FILE: ${OBSERVER_FASTRTPS_DEFAULT_PROFILES_FILE:-/rmw_configuration/fast/mock-observer.xml}
+      ZENOH_SESSION_CONFIG_URI: ${OBSERVER_ZENOH_SESSION_CONFIG_URI:-/rmw_configuration/zenoh/mock-observer.json5}
+    volumes:
+      - ../rmw_configuration:/rmw_configuration:ro
+      - ../../mock_robot_ws/src:/ws/src:ro
+    command:
+      - bash
+      - -lc
+      - |
+        set -e
+        source /opt/ros/jazzy/setup.bash
+        cd /ws
+        colcon build --symlink-install --packages-select mock_sensor_tools mock_robot_description mock_robot_bringup mock_robot_viz urdf_raycast_sensors dynamic_image_publisher
+        source install/setup.bash
+        exec ros2 launch mock_robot_viz foxglove_bridge.launch.py
+
+networks:
+  # Star topology:
+  # - mock-b0: first interface on all robot/observer containers (eth0)
+  # - mock-b1: observer (eth1) <-> mock-robot-1 (eth1)
+  # - mock-b2: observer (eth2) <-> mock-robot-2 (eth1)
+  # - mock-b3: observer (eth3) <-> mock-robot-3 (eth1)
+  mock-b0:
+    driver: bridge
+    ipam:
+      config:
+        - subnet: 172.30.10.0/24
+
+  mock-b1:
+    driver: bridge
+    ipam:
+      config:
+        - subnet: 172.30.11.0/24
+
+  mock-b2:
+    driver: bridge
+    ipam:
+      config:
+        - subnet: 172.30.12.0/24
+
+  mock-b3:
+    driver: bridge
+    ipam:
+      config:
+        - subnet: 172.30.13.0/24

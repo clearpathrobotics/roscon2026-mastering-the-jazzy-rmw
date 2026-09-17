@@ -1,0 +1,102 @@
+name: Mock stack tests
+
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - 'docker/ubuntu-headless/**'
+      - 'docker/docker-bake.hcl'
+      - 'docker/.dockerignore'
+      - 'docker/webshark/webshark.yml'
+      - 'docker/webshark/webshark.lab2.yml'
+      - 'docker/netdata/netdata.yml'
+      - 'scripts/gen_topology.sh'
+      - 'scripts/workshop'
+      - 'scripts/lib/workshop_core.sh'
+      - 'docker/compose/**'
+      - 'docker/scripts/run_mock_robot.sh'
+      - 'docker/scripts/run_observer.sh'
+      - 'docker/rmw_configuration/**'
+      - 'mock_robot_ws/src/**'
+      - 'lab2-on-the-wire/scripts/**'
+      - 'lab2-on-the-wire/scripts/netem_profile.sh'
+      - '.github/workflows/mock-stack-tests.yml'
+  workflow_dispatch:
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
+
+jobs:
+  smoke-test:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v7
+      - uses: docker/setup-buildx-action@v4
+      - name: Free disk space
+        uses: jlumbroso/free-disk-space@v1.3.1
+        with:
+          tool-cache: false
+          android: true
+          dotnet: true
+          haskell: true
+          large-packages: false
+          swap-storage: false
+
+      # webshark is built+loaded here (not published yet) so `workshop webshark up`
+      # finds it locally: its compose pulls the published image, which does not exist
+      # in CI, so the local build satisfies the image reference instead.
+      - name: Build and load ubuntu-headless + webshark
+        working-directory: docker
+        run: |
+          docker buildx bake --allow=fs.read=../mock_robot_ws -f docker-bake.hcl \
+            --load \
+            --set '*.cache-from=type=gha' \
+            --set '*.cache-to=type=gha,mode=max' \
+            --set '*.platform=linux/amd64' \
+            ubuntu-headless webshark
+
+      - name: Start the Lab 2 stack through the attendee entrypoint
+        run: |
+          scripts/workshop -t flat up 3
+          scripts/workshop webshark up
+          docker ps --format '{{.Names}}' | grep -Fx 'webshark'
+          docker ps --format '{{.Names}}' | grep -Fx 'mock-robot-1'
+          docker ps --format '{{.Names}}' | grep -Fx 'mock-robot-2'
+          docker ps --format '{{.Names}}' | grep -Fx 'mock-robot-3'
+
+      - name: Confirm sensor traffic reaches the observer
+        run: |
+          timeout 180 docker exec observer bash -lc '
+            source /opt/ros/jazzy/setup.bash
+            ros2 topic echo /robot_1/scan sensor_msgs/msg/LaserScan --once --field header
+          ' >/dev/null
+          timeout 30 docker exec observer bash -lc '
+            source /opt/ros/jazzy/setup.bash
+            ros2 topic echo /robot_1/sensor_0/camera/image_raw sensor_msgs/msg/Image --once --field header
+          ' >/dev/null
+
+      - name: Apply and clear a NetEm profile
+        run: |
+          scripts/workshop -t flat netem poor 1
+          status="$(scripts/workshop -t flat netem)"
+          printf '%s\n' "$status"
+          grep -Eq '^mock-robot-1[[:space:]].*delay' <<<"$status"
+          scripts/workshop -t flat netem clear 1
+
+      - name: Collect logs on failure
+        if: failure()
+        run: |
+          docker compose --profile mock \
+            -f docker/compose/flat.yml \
+            logs --no-color
+
+      - name: Tear down
+        if: always()
+        run: scripts/workshop -t flat down

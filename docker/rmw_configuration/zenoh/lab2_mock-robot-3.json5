@@ -1,0 +1,36 @@
+// lab2 overlay config (keeps lab1's rmw_configuration/ pristine). Luis's mock.yml
+// references zenoh/mock-robot-3.json5 but lab1 only ships robots 1-2; the lab2 bench
+// brings up all three, so robot-3's peer profile lives here and the overlay re-points
+// MOCK_ROBOT_3_ZENOH_SESSION_CONFIG_URI at it. This peer profile is the plain-mock-stack
+// fallback, mirroring cyclone/mock-robot-3.xml.
+{
+  // Pin Zenoh to mock-robot-3's exact mock-b0 address (172.30.10.0/24 is the
+  // only segment shared with the observer and mock-robot-1/2). Binding the
+  // multicast scouting interface and the listen endpoint to that NIC keeps
+  // discovery + peer connections on the shared bridge, so the observer
+  // reliably finds this robot across the star topology. Analogous to
+  // cyclone/mock-robot-3.xml's <NetworkInterface>.
+  mode: "peer",
+
+  scouting: {
+    multicast: {
+      enabled: true,
+      interface: "172.30.10.13",
+      autoconnect: { router: ["peer"], peer: ["peer"] },
+    },
+    gossip: {
+      enabled: true,
+      autoconnect: { router: ["peer"], peer: ["peer"] },
+    },
+  },
+
+  listen: {
+    endpoints: ["tcp/172.30.10.13:0"],
+  },
+
+  transport: {
+    shared_memory: {
+      enabled: false,
+    },
+  },
+}

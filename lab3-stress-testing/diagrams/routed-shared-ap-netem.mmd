@@ -1,0 +1,26 @@
+graph LR
+  Host["Single host Docker project"]
+  Generate["gen_topology.sh - generates routed compose"]
+  Shape["ap_shape.sh - AP profile"]
+  RobotA["robot-a - subnet 172.40.1.0/24"]
+  RobotB["robot-b - subnet 172.40.2.0/24"]
+  RobotN["robot-N - subnet 172.40.N.0/24"]
+  Console["console - subnet 172.40.100.0/24"]
+  AP["wifi-ap router - IP forwarding"]
+  Queue["ifb0 shared queue - HTB and netem"]
+  Result["Result: one shared medium budget - robot and console traffic contend"]
+
+  Host --> Generate
+  Host --> Shape
+  Generate --> RobotA
+  Generate --> RobotB
+  Generate --> RobotN
+  Generate --> Console
+  Shape --> Queue
+  RobotA --> AP
+  RobotB --> AP
+  RobotN --> AP
+  Console --> AP
+  AP --> Queue
+  Queue --> AP
+  AP --> Result
