@@ -8,6 +8,8 @@ in Docker on your own laptop.
 <details>
 <summary><b>Setup:</b> bring up the fleet and start capturing</summary>
 
+Start by modifying some permissions `chmod 1777 lab2-on-the-wire/captures/` from the repository root.
+
 Run all `scripts/workshop` commands from the repository root.
 
 ```bash
