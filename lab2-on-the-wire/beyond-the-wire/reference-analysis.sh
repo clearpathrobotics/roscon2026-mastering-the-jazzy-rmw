@@ -32,3 +32,13 @@ python analysis/plot_4camera_comparison.py \
 	reference-captures/rmw_subscriber/cyclone_bridge_markers.csv \
 	reference-captures/rmw_subscriber/zenoh_perhost_bridge_markers.csv \
 	output/camera_comparison.png
+
+python analysis/plot_5delivered_comparison.py \
+	reference-captures/rmw_subscriber/fast_bridge_arrivals.csv \
+	reference-captures/rmw_subscriber/cyclone_bridge_arrivals.csv \
+	reference-captures/rmw_subscriber/zenoh_perhost_bridge_arrivals.csv \
+	reference-captures/rmw_subscriber/fast_bridge_markers.csv \
+	reference-captures/rmw_subscriber/cyclone_bridge_markers.csv \
+	reference-captures/rmw_subscriber/zenoh_perhost_bridge_markers.csv \
+	output/delivered_camera_comparison.png \
+	output/delivered_scan_comparison.png
