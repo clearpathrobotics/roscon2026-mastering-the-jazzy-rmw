@@ -1,0 +1,32 @@
+{
+  // `profile mock` star topology: the only bridge common to the observer
+  // and both robots is mock-b0 (172.30.10.0/24). Docker does not put that
+  // bridge on the same NIC in every container, so leaving scouting unpinned
+  // lets Zenoh bind to a point-to-point bridge and the observer never
+  // discovers the robots. Pin the multicast scouting interface and the listen
+  // endpoint to this container's exact mock-b0 address (statically assigned in
+  // mock.yml). Analogous to cyclone/mock-observer.xml's <NetworkInterface>.
+  mode: "peer",
+
+  scouting: {
+    multicast: {
+      enabled: true,
+      interface: "172.30.10.20",
+      autoconnect: { router: ["peer"], peer: ["peer"] },
+    },
+    gossip: {
+      enabled: true,
+      autoconnect: { router: ["peer"], peer: ["peer"] },
+    },
+  },
+
+  listen: {
+    endpoints: ["tcp/172.30.10.20:0"],
+  },
+
+  transport: {
+    shared_memory: {
+      enabled: false,
+    },
+  },
+}

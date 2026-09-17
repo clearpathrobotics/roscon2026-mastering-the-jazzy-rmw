@@ -1,0 +1,14 @@
+# teleop_twist_joy params — matches the teleop node under any robot namespace.
+# require_enable_button is disabled so joystick axes drive the robot without a
+# deadman button held. Adjust axis/button indices to match your gamepad layout.
+/**/teleop_twist_joy_node:
+  ros__parameters:
+    publish_stamped_twist: true
+    require_enable_button: false
+    enable_button: 0
+    enable_turbo_button: -1
+    axis_linear.x: 1
+    scale_linear.x: 0.5
+    scale_linear_turbo.x: 1.0
+    axis_angular.yaw: 0
+    scale_angular.yaw: 1.0

@@ -1,0 +1,15 @@
+{
+  "configById": {
+    "Image!fleetmap": {
+      "imageMode": {
+        "imageTopic": "/fleet_map/image_raw/compressed"
+      }
+    }
+  },
+  "globalVariables": {},
+  "userNodes": {},
+  "playbackConfig": {
+    "speed": 1
+  },
+  "layout": "Image!fleetmap"
+}

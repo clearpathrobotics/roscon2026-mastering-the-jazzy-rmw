@@ -1,0 +1,15 @@
+// Optional Lab 4 reference variant: same-host Zenoh peer mesh with shared memory.
+// The compose service must provide a sufficiently large /dev/shm.
+{
+  mode: "peer",
+  scouting: {
+    multicast: {
+      enabled: true,
+    },
+  },
+  transport: {
+    shared_memory: {
+      enabled: true,
+    },
+  },
+}

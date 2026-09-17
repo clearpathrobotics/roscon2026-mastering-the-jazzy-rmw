@@ -1,0 +1,42 @@
+# Canonical observer DEFINITION (never started directly).
+#
+# The operator-side container shared by every topology: image/build, caps, the
+# Foxglove bridge port, and the workspace + rmw_configuration mounts. It has NO
+# `networks` and NO `command`. Each topology file extends this service and
+# supplies its own wiring and entrypoint (the topology compose sets the observer
+# command; see gen_topology.sh).
+#
+# The `_def` sentinel profile keeps it out of every normal `up`; it exists only
+# to be referenced via `extends: {file: observer.yml, service: observer}`.
+name: roscon2026-jazzy-rmw
+
+services:
+  observer:
+    profiles: ["_def"]
+    image: ghcr.io/clearpathrobotics/roscon2026-mastering-the-jazzy-rmw:ubuntu-headless-latest
+    pull_policy: missing
+    build:
+      context: ../../docker
+      dockerfile: ubuntu-headless/Dockerfile
+      additional_contexts:
+        mock_ws: ../../mock_robot_ws
+    init: true
+    stdin_open: true
+    tty: true
+    cap_add: [NET_ADMIN, NET_RAW]
+    ports:
+      # 0.0.0.0 supports a server setup reachable over the LAN (point ds.url at
+      # this host's LAN IP); use 127.0.0.1 instead if you want loopback-only access.
+      - "0.0.0.0:${FOXGLOVE_BRIDGE_PORT:-8765}:8765"
+    environment:
+      ROS_DOMAIN_ID: "${ROS_DOMAIN_ID:-25}"
+    volumes:
+      - ../rmw_configuration:/rmw_configuration:ro
+      - ../../mock_robot_ws/src:/ws/src:ro
+      # /scripts = unified host-authored container entrypoints (including the
+      # cross-lab /scripts/shared helpers, e.g. play_bag.sh); /scripts/lab3 = leaf
+      # helpers (pilot.py, fleet_map.py, ap_entrypoint.sh) nested under it.
+      - ../scripts:/scripts
+      - ../../lab3-stress-testing/scripts:/scripts/lab3:ro
+      - ../../lab2-on-the-wire/captures:/lab2-captures
+      - ../../lab2-on-the-wire/scripts:/lab2-scripts:ro

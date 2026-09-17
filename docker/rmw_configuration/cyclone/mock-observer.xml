@@ -1,0 +1,31 @@
+<CycloneDDS>
+  <Domain id="any">
+    <General>
+      <!-- Hub-and-spoke discovery over the shared mock-b0 bridge (172.30.10.0/24),
+           the one segment every container is attached to. CycloneDDS reliably
+           uses a single network interface, so discovery is single-homed on
+           mock-b0 rather than multi-homed across the spoke bridges.
+
+           Isolation is enforced at the DDS layer, not by L2: multicast is
+           disabled and discovery is driven entirely by explicit unicast
+           <Peers>. The observer peers with every robot, so it discovers
+           them all. Each robot peers only with the observer (see the
+           per-robot configs), so robots never exchange participant discovery
+           and cannot see each other even though they share mock-b0. -->
+      <AllowMulticast>false</AllowMulticast>
+      <Interfaces>
+        <NetworkInterface address="172.30.10.20"/>  <!-- mock-b0 (shared) -->
+      </Interfaces>
+    </General>
+    <Discovery>
+      <ParticipantIndex>auto</ParticipantIndex>
+      <MaxAutoParticipantIndex>120</MaxAutoParticipantIndex>
+      <Peers>
+        <Peer address="localhost"/>     <!-- same-host participants (ros2 CLI) -->
+        <Peer address="172.30.10.11"/>  <!-- mock-robot-1 -->
+        <Peer address="172.30.10.12"/>  <!-- mock-robot-2 -->
+        <Peer address="172.30.10.13"/>  <!-- mock-robot-3 -->
+      </Peers>
+    </Discovery>
+  </Domain>
+</CycloneDDS>

@@ -1,0 +1,25 @@
+{
+  "version": "0.2",
+  "language": "en-GB",
+  "dictionaryDefinitions": [
+    {
+      "name": "workshop",
+      "path": ".cspell/custom-dictionary-workspace.txt",
+      "addWords": true
+    }
+  ],
+  "dictionaries": ["workshop", "en_GB"],
+  "ignorePaths": [
+    "**/node_modules/**",
+    ".git/**",
+    "**/captures/**",
+    "**/fixtures/*.pcap.gz",
+    "**/guide-assets/**",
+    "**/*.{png,jpg,pcap,pcapng,gz,mcap,db3,ico}",
+    "**/package-lock.json",
+    "**/.inline.js",
+    "LICENSE",
+    "**/LICENSE",
+    "cspell.json"
+  ]
+}

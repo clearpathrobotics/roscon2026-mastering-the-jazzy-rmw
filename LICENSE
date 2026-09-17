@@ -199,3 +199,24 @@
    WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
    See the License for the specific language governing permissions and
    limitations under the License.
+
+-------------------------------------------------------------------------------
+
+EXCEPTIONS
+
+The Apache License above covers this repository except for the files listed
+here, which are modified copies of a GPL program and are therefore licensed
+GPL-2.0-or-later:
+
+    docker/webshark/index.html
+    docker/webshark/root.js
+    docker/webshark/sharkd_dict.js
+
+They derive from QXIP/node-webshark at commit 4615493c, copyright (C) 2016
+Jakub Zawadzki and (C) 2020 QXIP B.V. The GPL-2.0 text is at
+docker/webshark/LICENSE, and docker/webshark/THIRD-PARTY.md records what was
+changed and lists the third-party components the webshark image ships.
+
+Everything else under docker/webshark/, including the field guide, the
+Dockerfile, the fixtures and the test suites, is Apache-2.0 like the rest of
+the repository.

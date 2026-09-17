@@ -1,0 +1,393 @@
+<?xml version="1.0"?>
+<!--
+  Self-contained A300 robot description for mock_robot_description.
+  All xacro includes from clearpath_platform_description have been inlined.
+  The ros2_control hardware plugin uses mock_components/GenericSystem so no
+  real hardware or Gazebo is needed.
+
+  Usage:
+    xacro mock_robot.urdf.xacro robot_name:=mock_robot_1
+-->
+<robot xmlns:xacro="http://www.ros.org/wiki/xacro" name="a300">
+  <xacro:arg name="robot_name" default="mock_robot"/>
+  <xacro:arg name="tf_prefix" default="robot"/>
+  <xacro:arg name="use_nav2" default="false"/>
+  <xacro:property name="tf_prefix" value="$(arg tf_prefix)"/>
+
+  <!-- ====================================================================
+       Materials
+  ====================================================================== -->
+  <material name="clearpath_yellow">  <color rgba="1.0  0.69 0.0  1.0"/> </material>
+  <material name="clearpath_dark_grey"><color rgba="0.2  0.2  0.2  1.0"/> </material>
+  <material name="clearpath_black">   <color rgba="0.1  0.1  0.1  1.0"/> </material>
+  <material name="clearpath_white">   <color rgba="0.95 0.95 0.95 1.0"/> </material>
+
+  <!-- ====================================================================
+       Chassis geometry parameters
+  ====================================================================== -->
+  <xacro:property name="chassis_mass"   value="70"/>
+  <xacro:property name="chassis_x_size" value="0.860"/>
+  <xacro:property name="chassis_y_size" value="0.378"/>
+  <xacro:property name="chassis_z_size" value="0.229559"/>
+  <xacro:property name="wheel_base"     value="0.512"/>
+  <xacro:property name="wheel_track"    value="0.562"/>
+
+  <!-- Suspension mount positions on chassis -->
+  <xacro:property name="susp_x" value="0.0"/>
+  <xacro:property name="susp_y" value="0.192"/>
+  <xacro:property name="susp_z" value="0.03763"/>
+
+  <!-- Wheel properties (outdoor wheels) -->
+  <xacro:property name="wheel_radius" value="0.1651"/>
+  <xacro:property name="wheel_width"  value="0.1143"/>
+  <xacro:property name="wheel_mass"   value="2.5"/>
+
+  <!-- ====================================================================
+       Base link (centre of rotation at ground)
+  ====================================================================== -->
+  <link name="${tf_prefix}/base_link"/>
+
+  <!-- use_nav2:=false (plain mock): statically pin the robot to the shared
+       `world` frame so the TF tree is complete without a localization source.
+       use_nav2:=true: drop this so AMCL/SLAM can own `map -> odom`; the EKF
+       then provides `odom -> base_link` and mock_robot_nav2 adds `world -> map`. -->
+  <xacro:unless value="$(arg use_nav2)">
+    <link name="world"/>
+    <link name="${tf_prefix}/odom"/>
+
+    <joint name="world_to_odom_joint" type="fixed">
+      <parent link="world"/>
+      <child  link="${tf_prefix}/odom"/>
+      <origin xyz="0 0 0" rpy="0 0 0"/>
+    </joint>
+
+    <joint name="odom_to_base_joint" type="fixed">
+      <parent link="${tf_prefix}/odom"/>
+      <child  link="${tf_prefix}/base_link"/>
+      <origin xyz="0 0 0" rpy="0 0 0"/>
+    </joint>
+  </xacro:unless>
+
+  <!-- ====================================================================
+       Chassis link
+  ====================================================================== -->
+  <link name="${tf_prefix}/chassis_link">
+    <visual>
+      <geometry>
+        <mesh filename="package://mock_robot_description/meshes/a300/chassis.dae"/>
+      </geometry>
+    </visual>
+    <visual>
+      <geometry>
+        <mesh filename="package://mock_robot_description/meshes/a300/livery.dae"/>
+      </geometry>
+    </visual>
+    <visual>
+      <geometry>
+        <mesh filename="package://mock_robot_description/meshes/a300/status_lights.dae"/>
+      </geometry>
+    </visual>
+    <collision>
+      <geometry>
+        <mesh filename="package://mock_robot_description/meshes/a300/chassis_collision.stl"/>
+      </geometry>
+    </collision>
+    <inertial>
+      <mass value="${chassis_mass}"/>
+      <origin xyz="0 0 ${chassis_z_size/2}" rpy="0 0 0"/>
+      <inertia
+        ixx="${chassis_mass/12 * (chassis_y_size**2 + chassis_z_size**2)}" ixy="0" ixz="0"
+        iyy="${chassis_mass/12 * (chassis_x_size**2 + chassis_z_size**2)}" iyz="0"
+        izz="${chassis_mass/12 * (chassis_x_size**2 + chassis_y_size**2)}"/>
+    </inertial>
+  </link>
+
+  <joint name="chassis_joint" type="fixed">
+    <parent link="${tf_prefix}/base_link"/>
+    <child  link="${tf_prefix}/chassis_link"/>
+    <origin xyz="0 0 0" rpy="0 0 0"/>
+  </joint>
+
+  <!-- Suspension mount anchors -->
+  <link name="${tf_prefix}/chassis_left_suspension_mount"/>
+  <link name="${tf_prefix}/chassis_right_suspension_mount"/>
+
+  <joint name="chassis_left_suspension_mount_joint" type="fixed">
+    <parent link="${tf_prefix}/chassis_link"/>
+    <child  link="${tf_prefix}/chassis_left_suspension_mount"/>
+    <origin xyz="${susp_x} ${susp_y} ${susp_z}" rpy="0 0 0"/>
+  </joint>
+  <joint name="chassis_right_suspension_mount_joint" type="fixed">
+    <parent link="${tf_prefix}/chassis_link"/>
+    <child  link="${tf_prefix}/chassis_right_suspension_mount"/>
+    <origin xyz="${susp_x} ${-susp_y} ${susp_z}" rpy="0 0 0"/>
+  </joint>
+
+  <!-- Base footprint -->
+  <link name="${tf_prefix}/base_footprint"/>
+  <joint name="base_footprint_joint" type="fixed">
+    <parent link="${tf_prefix}/chassis_link"/>
+    <child  link="${tf_prefix}/base_footprint"/>
+    <origin xyz="0 0 ${wheel_radius}" rpy="0 0 0"/>
+  </joint>
+
+  <!-- Default top mount on the chassis -->
+  <link name="${tf_prefix}/default_mount"/>
+  <joint name="default_mount_joint" type="fixed">
+    <parent link="${tf_prefix}/chassis_link"/>
+    <child  link="${tf_prefix}/default_mount"/>
+    <origin xyz="0 0 ${chassis_z_size}" rpy="0 0 0"/>
+  </joint>
+
+  <!-- ====================================================================
+       Default A300 top plate (inlined from attachments/top_plate.urdf.xacro)
+  ====================================================================== -->
+  <xacro:property name="top_plate_size_x"   value="0.74"/>
+  <xacro:property name="top_plate_size_y"   value="0.42"/>
+  <xacro:property name="top_plate_size_z"   value="0.0127"/>
+  <xacro:property name="top_plate_offset_z" value="0.229559"/>
+
+  <link name="${tf_prefix}/top_plate_link">
+    <visual>
+      <origin xyz="0.0 0.0 ${-top_plate_offset_z}"/>
+      <geometry>
+        <mesh filename="package://mock_robot_description/meshes/a300/attachments/top_plate.dae"/>
+      </geometry>
+    </visual>
+    <collision>
+      <origin xyz="0.0 0.0 ${top_plate_size_z/2}"/>
+      <geometry>
+        <box size="${top_plate_size_x} ${top_plate_size_y} ${top_plate_size_z}"/>
+      </geometry>
+    </collision>
+  </link>
+  <joint name="top_plate_joint" type="fixed">
+    <parent link="${tf_prefix}/default_mount"/>
+    <child  link="${tf_prefix}/top_plate_link"/>
+    <origin xyz="0 0 0" rpy="0 0 0"/>
+  </joint>
+
+  <!-- Top plate default mount -->
+  <link name="${tf_prefix}/top_plate_default_mount"/>
+  <joint name="top_plate_default_joint" type="fixed">
+    <parent link="${tf_prefix}/top_plate_link"/>
+    <child  link="${tf_prefix}/top_plate_default_mount"/>
+    <origin xyz="0.0 0.0 ${top_plate_size_z}"/>
+  </joint>
+
+  <!-- Top plate front mount -->
+  <link name="${tf_prefix}/top_plate_front_mount"/>
+  <joint name="top_plate_front_joint" type="fixed">
+    <parent link="${tf_prefix}/top_plate_default_mount"/>
+    <child  link="${tf_prefix}/top_plate_front_mount"/>
+    <origin xyz="${top_plate_size_x/2} 0 0"/>
+  </joint>
+
+  <!-- Top plate rear mount -->
+  <link name="${tf_prefix}/top_plate_rear_mount"/>
+  <joint name="top_plate_rear_joint" type="fixed">
+    <parent link="${tf_prefix}/top_plate_default_mount"/>
+    <child  link="${tf_prefix}/top_plate_rear_mount"/>
+    <origin xyz="${-top_plate_size_x/2} 0 0"/>
+  </joint>
+
+  <!-- ====================================================================
+       Suspension beam macro (inlined from suspension_beam.urdf.xacro)
+  ====================================================================== -->
+  <xacro:macro name="a300_suspension_beam" params="side">
+    <xacro:property name="rot_yaw"       value="${3.14159 if side == 'right' else 0}"/>
+    <xacro:property name="spacer_offset" value="${-0.0159 if side == 'right' else 0.0159}"/>
+
+    <link name="${tf_prefix}/${side}_suspension_beam_spacer_link">
+      <visual>
+        <material name="clearpath_dark_grey"/>
+        <geometry>
+          <mesh filename="package://mock_robot_description/meshes/a300/drivetrain/suspension_spacer.stl"/>
+        </geometry>
+        <origin rpy="0 0 ${rot_yaw}"/>
+      </visual>
+      <collision>
+        <geometry>
+          <mesh filename="package://mock_robot_description/meshes/a300/drivetrain/suspension_spacer.stl"/>
+        </geometry>
+      </collision>
+    </link>
+    <joint name="${side}_suspension_beam_spacer_joint" type="fixed">
+      <parent link="${tf_prefix}/chassis_${side}_suspension_mount"/>
+      <child  link="${tf_prefix}/${side}_suspension_beam_spacer_link"/>
+    </joint>
+
+    <link name="${tf_prefix}/${side}_suspension_beam_link">
+      <visual>
+        <material name="clearpath_dark_grey"/>
+        <geometry>
+          <mesh filename="package://mock_robot_description/meshes/a300/drivetrain/suspension_beam.stl"/>
+        </geometry>
+        <origin rpy="0 0 ${rot_yaw}"/>
+      </visual>
+      <collision>
+        <geometry>
+          <mesh filename="package://mock_robot_description/meshes/a300/drivetrain/suspension_beam.stl"/>
+        </geometry>
+      </collision>
+    </link>
+    <joint name="${side}_suspension_beam_joint" type="fixed">
+      <parent link="${tf_prefix}/${side}_suspension_beam_spacer_link"/>
+      <child  link="${tf_prefix}/${side}_suspension_beam_link"/>
+      <origin xyz="0 ${spacer_offset} 0"/>
+    </joint>
+
+    <link name="${tf_prefix}/${side}_suspension_beam_front_mount"/>
+    <link name="${tf_prefix}/${side}_suspension_beam_rear_mount"/>
+
+    <joint name="${side}_suspension_beam_front_mount_joint" type="fixed">
+      <parent link="${tf_prefix}/${side}_suspension_beam_link"/>
+      <child  link="${tf_prefix}/${side}_suspension_beam_front_mount"/>
+      <origin xyz="0.256 0.0095 -0.0085"/>
+    </joint>
+    <joint name="${side}_suspension_beam_rear_mount_joint" type="fixed">
+      <parent link="${tf_prefix}/${side}_suspension_beam_link"/>
+      <child  link="${tf_prefix}/${side}_suspension_beam_rear_mount"/>
+      <origin xyz="-0.256 0.0095 -0.0085"/>
+    </joint>
+  </xacro:macro>
+
+  <xacro:a300_suspension_beam side="left"/>
+  <xacro:a300_suspension_beam side="right"/>
+
+  <!-- ====================================================================
+       Motor macro (inlined from motor.urdf.xacro)
+  ====================================================================== -->
+  <xacro:macro name="a300_motor" params="prefix side">
+    <xacro:property name="rot_yaw" value="${3.14159 if side == 'left' else 0}"/>
+    <xacro:property name="trans_y" value="${0.0655  if side == 'left' else -0.0655}"/>
+
+    <link name="${tf_prefix}/${prefix}_${side}_motor_link">
+      <visual>
+        <material name="clearpath_dark_grey"/>
+        <geometry>
+          <mesh filename="package://mock_robot_description/meshes/a300/drivetrain/motor.stl"/>
+        </geometry>
+        <origin rpy="0 0 ${rot_yaw}"/>
+      </visual>
+      <collision>
+        <geometry>
+          <mesh filename="package://mock_robot_description/meshes/a300/drivetrain/motor.stl"/>
+        </geometry>
+      </collision>
+    </link>
+    <joint name="${prefix}_${side}_motor_joint" type="fixed">
+      <parent link="${tf_prefix}/${side}_suspension_beam_${prefix}_mount"/>
+      <child  link="${tf_prefix}/${prefix}_${side}_motor_link"/>
+    </joint>
+
+    <link name="${tf_prefix}/${prefix}_${side}_motor_mount"/>
+    <joint name="${prefix}_${side}_motor_mount_joint" type="fixed">
+      <parent link="${tf_prefix}/${prefix}_${side}_motor_link"/>
+      <child  link="${tf_prefix}/${prefix}_${side}_motor_mount"/>
+      <origin xyz="0 ${trans_y} 0"/>
+    </joint>
+  </xacro:macro>
+
+  <!-- ====================================================================
+       Outdoor wheel macro (inlined from wheels/outdoor.urdf.xacro)
+  ====================================================================== -->
+  <xacro:macro name="a300_outdoor_wheel" params="prefix side">
+    <link name="${tf_prefix}/${prefix}_${side}_wheel_link">
+      <inertial>
+        <mass value="${wheel_mass}"/>
+        <origin xyz="0 0 0"/>
+        <inertia
+          ixx="${wheel_mass/12 * (3*wheel_radius**2 + wheel_width**2)}" ixy="0" ixz="0"
+          iyy="${wheel_mass/2  * wheel_radius**2}"                      iyz="0"
+          izz="${wheel_mass/12 * (3*wheel_radius**2 + wheel_width**2)}"/>
+      </inertial>
+      <visual>
+        <origin xyz="0 0 0" rpy="0 0 ${3.14159 if side == 'right' else 0}"/>
+        <material name="clearpath_dark_grey"/>
+        <geometry>
+          <mesh filename="package://mock_robot_description/meshes/a300/drivetrain/wheels/outdoor_${side}.stl"/>
+        </geometry>
+      </visual>
+      <collision>
+        <origin xyz="0 0 0" rpy="${3.14159/2} 0 0"/>
+        <geometry>
+          <cylinder length="${wheel_width}" radius="${wheel_radius}"/>
+        </geometry>
+      </collision>
+    </link>
+    <joint name="${prefix}_${side}_wheel_joint" type="continuous">
+      <parent link="${tf_prefix}/${prefix}_${side}_motor_mount"/>
+      <child  link="${tf_prefix}/${prefix}_${side}_wheel_link"/>
+      <axis xyz="0 1 0"/>
+    </joint>
+  </xacro:macro>
+
+  <!-- ====================================================================
+       Drivetrain: motors + outdoor wheels on all four corners
+  ====================================================================== -->
+  <xacro:a300_motor prefix="front" side="left"/>
+  <xacro:a300_motor prefix="front" side="right"/>
+  <xacro:a300_motor prefix="rear"  side="left"/>
+  <xacro:a300_motor prefix="rear"  side="right"/>
+
+  <xacro:a300_outdoor_wheel prefix="front" side="left"/>
+  <xacro:a300_outdoor_wheel prefix="front" side="right"/>
+  <xacro:a300_outdoor_wheel prefix="rear"  side="left"/>
+  <xacro:a300_outdoor_wheel prefix="rear"  side="right"/>
+
+  <!-- ====================================================================
+       Lidar — defines the sensor frame for urdf_raycast_sensors/laserscan_node
+  ====================================================================== -->
+  <link name="${tf_prefix}/lidar_link">
+    <visual>
+      <origin xyz="0 0 0" rpy="0 0 0"/>
+      <material name="clearpath_black"/>
+      <geometry>
+        <cylinder radius="0.05" length="0.07"/>
+      </geometry>
+    </visual>
+    <collision>
+      <origin xyz="0 0 0" rpy="0 0 0"/>
+      <geometry>
+        <cylinder radius="0.05" length="0.07"/>
+      </geometry>
+    </collision>
+  </link>
+  <joint name="lidar_joint" type="fixed">
+    <parent link="${tf_prefix}/base_link"/>
+    <child  link="${tf_prefix}/lidar_link"/>
+    <origin xyz="0 0 0.4" rpy="0 0 0"/>
+  </joint>
+
+  <!-- ====================================================================
+       ros2_control — mock_components/GenericSystem (no real hardware)
+  ====================================================================== -->
+  <ros2_control name="$(arg robot_name)_hardware" type="system">
+    <hardware>
+      <plugin>mock_components/GenericSystem</plugin>
+      <param name="calculate_dynamics">true</param>
+    </hardware>
+    <joint name="front_left_wheel_joint">
+      <command_interface name="velocity"/>
+      <state_interface name="position"/>
+      <state_interface name="velocity"/>
+    </joint>
+    <joint name="front_right_wheel_joint">
+      <command_interface name="velocity"/>
+      <state_interface name="position"/>
+      <state_interface name="velocity"/>
+    </joint>
+    <joint name="rear_left_wheel_joint">
+      <command_interface name="velocity"/>
+      <state_interface name="position"/>
+      <state_interface name="velocity"/>
+    </joint>
+    <joint name="rear_right_wheel_joint">
+      <command_interface name="velocity"/>
+      <state_interface name="position"/>
+      <state_interface name="velocity"/>
+    </joint>
+  </ros2_control>
+
+</robot>

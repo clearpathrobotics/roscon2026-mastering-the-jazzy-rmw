@@ -1,0 +1,23 @@
+name: Shell tests
+
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - '**/*.sh'
+      - 'scripts/workshop'
+      - '.github/workflows/shell-tests.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  syntax:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - name: Check shell syntax
+        run: |
+          mapfile -d '' scripts < <(git ls-files -z '*.sh')
+          bash -n "${scripts[@]}" scripts/workshop

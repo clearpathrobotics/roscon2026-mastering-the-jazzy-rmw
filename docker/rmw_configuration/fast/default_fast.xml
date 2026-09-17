@@ -1,0 +1,23 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!-- Default Fast DDS profile: simple multicast discovery with the built-in
+     transports (UDPv4 + SHM), no interface pinning. Analogous to
+     cyclone/default_cyclone.xml. Use on a flat network where every participant
+     shares one broadcast domain. The per-node profiles (mock-robot-1.xml, etc.)
+     instead whitelist the shared mock-b0 interface for the star topology. -->
+<profiles xmlns="http://www.eprosima.com/XMLSchemas/fastRTPS_Profiles">
+
+  <participant profile_name="default_participant" is_default_profile="true">
+    <rtps>
+      <builtin>
+        <discovery_config>
+          <discoveryProtocol>SIMPLE</discoveryProtocol>
+          <EDP>SIMPLE</EDP>
+          <leaseDuration>
+            <sec>DURATION_INFINITY</sec>
+          </leaseDuration>
+        </discovery_config>
+      </builtin>
+    </rtps>
+  </participant>
+
+</profiles>

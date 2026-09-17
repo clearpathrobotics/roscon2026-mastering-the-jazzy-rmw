@@ -1,0 +1,19 @@
+// Optional Lab 4 reference variant: latency-tuned Zenoh client -> dedicated
+// router over one unicast link with the lowlatency transport.
+{
+  mode: "client",
+  connect: {
+    endpoints: ["tcp/zenoh-router:7447"],
+  },
+  scouting: {
+    multicast: { enabled: false },
+    gossip:    { enabled: true },
+  },
+  transport: {
+    unicast: {
+      qos:        { enabled: false },
+      lowlatency: true,
+    },
+    shared_memory: { enabled: false },
+  },
+}

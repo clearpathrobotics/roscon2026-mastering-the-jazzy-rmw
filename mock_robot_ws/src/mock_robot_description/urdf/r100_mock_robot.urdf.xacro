@@ -1,0 +1,420 @@
+<?xml version="1.0"?>
+<!--
+  Self-contained Ridgeback R100 robot description for mock_robot_description.
+  All xacro includes from clearpath_platform_description have been inlined.
+  The ros2_control hardware plugin uses mock_components/GenericSystem so no
+  real hardware or Gazebo is needed.
+
+  Usage:
+    xacro r100_mock_robot.urdf.xacro robot_name:=mock_robot_1
+-->
+<robot xmlns:xacro="http://www.ros.org/wiki/xacro" name="r100">
+  <xacro:arg name="robot_name" default="mock_robot"/>
+  <xacro:arg name="tf_prefix" default="robot"/>
+  <xacro:arg name="use_nav2" default="false"/>
+  <xacro:property name="tf_prefix" value="$(arg tf_prefix)"/>
+
+  <!-- ====================================================================
+       Materials
+  ====================================================================== -->
+  <material name="clearpath_yellow">    <color rgba="1.0  0.69 0.0  1.0"/> </material>
+  <material name="clearpath_dark_grey"> <color rgba="0.2  0.2  0.2  1.0"/> </material>
+  <material name="clearpath_black">     <color rgba="0.1  0.1  0.1  1.0"/> </material>
+  <material name="clearpath_white">     <color rgba="0.95 0.95 0.95 1.0"/> </material>
+  <material name="clearpath_red">       <color rgba="0.8  0.0  0.0  1.0"/> </material>
+  <material name="clearpath_light_grey"><color rgba="0.7  0.7  0.7  1.0"/> </material>
+
+  <!-- ====================================================================
+       Chassis geometry parameters
+  ====================================================================== -->
+  <xacro:property name="chassis_length"  value="0.960"/>
+  <xacro:property name="chassis_width"   value="0.793"/>
+  <xacro:property name="chassis_height"  value="0.216"/>
+  <xacro:property name="deck_height"     value="0.280"/>
+  <xacro:property name="deck_thickness"  value="0.005"/>
+  <xacro:property name="riser_height"    value="0.070"/>
+
+  <xacro:property name="axle_offset"     value="0.0500"/>
+  <xacro:property name="rocker_offset"   value="0.319"/>
+  <xacro:property name="rocker_width"    value="0.472"/>
+
+  <!-- Mecanum wheel properties -->
+  <xacro:property name="wheel_radius" value="0.0759"/>
+  <xacro:property name="wheel_width"  value="0.0790"/>
+  <xacro:property name="wheel_mass"   value="2.5"/>
+
+  <!-- ====================================================================
+       Base link (centre of rotation at ground)
+  ====================================================================== -->
+  <link name="${tf_prefix}/base_link"/>
+
+  <!-- use_nav2:=false (plain mock): statically pin the robot to the shared
+       `world` frame so the TF tree is complete without a localization source.
+       use_nav2:=true: drop this so AMCL/SLAM can own `map -> odom`; the EKF
+       then provides `odom -> base_link` and mock_robot_nav2 adds `world -> map`. -->
+  <xacro:unless value="$(arg use_nav2)">
+    <link name="world"/>
+    <link name="${tf_prefix}/odom"/>
+
+    <joint name="world_to_odom_joint" type="fixed">
+      <parent link="world"/>
+      <child  link="${tf_prefix}/odom"/>
+      <origin xyz="0 0 0" rpy="0 0 0"/>
+    </joint>
+
+    <joint name="odom_to_base_joint" type="fixed">
+      <parent link="${tf_prefix}/odom"/>
+      <child  link="${tf_prefix}/base_link"/>
+      <origin xyz="0 0 0" rpy="0 0 0"/>
+    </joint>
+  </xacro:unless>
+
+  <!-- ====================================================================
+       Chassis link
+  ====================================================================== -->
+  <link name="${tf_prefix}/chassis_link">
+    <visual>
+      <origin xyz="0 0 0" rpy="0 0 0"/>
+      <material name="clearpath_black"/>
+      <geometry>
+        <mesh filename="package://mock_robot_description/meshes/r100/body.stl"/>
+      </geometry>
+    </visual>
+    <collision>
+      <origin xyz="0 0 0"/>
+      <geometry>
+        <mesh filename="package://mock_robot_description/meshes/r100/body-collision.stl"/>
+      </geometry>
+    </collision>
+    <inertial>
+      <origin xyz="0.012 0.002 0.067" rpy="${math.pi/2} 0 ${math.pi/2}"/>
+      <mass value="165.304"/>
+      <inertia
+        ixx="4.4744" ixy="0.03098" ixz="0.003647"
+        iyy="7.1624" iyz="0.1228"
+        izz="4.6155"/>
+    </inertial>
+  </link>
+
+  <joint name="chassis_joint" type="fixed">
+    <parent link="${tf_prefix}/base_link"/>
+    <child  link="${tf_prefix}/chassis_link"/>
+    <origin xyz="0 0 0" rpy="0 0 0"/>
+  </joint>
+
+  <!-- Base footprint -->
+  <link name="${tf_prefix}/base_footprint"/>
+  <joint name="base_footprint_joint" type="fixed">
+    <parent link="${tf_prefix}/chassis_link"/>
+    <child  link="${tf_prefix}/base_footprint"/>
+    <origin xyz="0 0 ${-(axle_offset + wheel_radius)}" rpy="0 0 0"/>
+  </joint>
+
+  <!-- ====================================================================
+       Covers
+  ====================================================================== -->
+  <link name="${tf_prefix}/left_side_cover_link">
+    <visual>
+      <origin xyz="0 0 0" rpy="0 0 ${math.pi}"/>
+      <material name="clearpath_yellow"/>
+      <geometry>
+        <mesh filename="package://mock_robot_description/meshes/r100/side-cover.stl"/>
+      </geometry>
+    </visual>
+  </link>
+  <joint name="left_side_cover_link_joint" type="fixed">
+    <parent link="${tf_prefix}/chassis_link"/>
+    <child  link="${tf_prefix}/left_side_cover_link"/>
+    <origin xyz="0 0 0" rpy="0 0 0"/>
+  </joint>
+
+  <link name="${tf_prefix}/right_side_cover_link">
+    <visual>
+      <origin xyz="0 0 0" rpy="0 0 0"/>
+      <material name="clearpath_yellow"/>
+      <geometry>
+        <mesh filename="package://mock_robot_description/meshes/r100/side-cover.stl"/>
+      </geometry>
+    </visual>
+  </link>
+  <joint name="right_side_cover_link_joint" type="fixed">
+    <parent link="${tf_prefix}/chassis_link"/>
+    <child  link="${tf_prefix}/right_side_cover_link"/>
+    <origin xyz="0 0 0" rpy="0 0 0"/>
+  </joint>
+
+  <link name="${tf_prefix}/front_cover_link">
+    <visual>
+      <origin xyz="0 0 0" rpy="0 0 0"/>
+      <material name="clearpath_black"/>
+      <geometry>
+        <mesh filename="package://mock_robot_description/meshes/r100/end-cover.stl"/>
+      </geometry>
+    </visual>
+  </link>
+  <joint name="front_cover_link_joint" type="fixed">
+    <parent link="${tf_prefix}/chassis_link"/>
+    <child  link="${tf_prefix}/front_cover_link"/>
+    <origin xyz="0 0 0" rpy="0 0 0"/>
+  </joint>
+
+  <link name="${tf_prefix}/rear_cover_link">
+    <visual>
+      <origin xyz="0 0 0" rpy="0 0 ${math.pi}"/>
+      <material name="clearpath_black"/>
+      <geometry>
+        <mesh filename="package://mock_robot_description/meshes/r100/end-cover.stl"/>
+      </geometry>
+    </visual>
+  </link>
+  <joint name="rear_cover_link_joint" type="fixed">
+    <parent link="${tf_prefix}/chassis_link"/>
+    <child  link="${tf_prefix}/rear_cover_link"/>
+    <origin xyz="0 0 0" rpy="0 0 0"/>
+  </joint>
+
+  <!-- ====================================================================
+       Lights
+  ====================================================================== -->
+  <link name="${tf_prefix}/front_lights_link">
+    <visual>
+      <origin xyz="0 0 0" rpy="0 0 0"/>
+      <material name="clearpath_white"/>
+      <geometry>
+        <mesh filename="package://mock_robot_description/meshes/r100/lights.stl"/>
+      </geometry>
+    </visual>
+  </link>
+  <joint name="front_lights_link_joint" type="fixed">
+    <parent link="${tf_prefix}/chassis_link"/>
+    <child  link="${tf_prefix}/front_lights_link"/>
+    <origin xyz="0 0 0" rpy="0 0 0"/>
+  </joint>
+
+  <link name="${tf_prefix}/rear_lights_link">
+    <visual>
+      <origin xyz="0 0 0" rpy="0 0 ${math.pi}"/>
+      <material name="clearpath_red"/>
+      <geometry>
+        <mesh filename="package://mock_robot_description/meshes/r100/lights.stl"/>
+      </geometry>
+    </visual>
+  </link>
+  <joint name="rear_lights_link_joint" type="fixed">
+    <parent link="${tf_prefix}/chassis_link"/>
+    <child  link="${tf_prefix}/rear_lights_link"/>
+    <origin xyz="0 0 0" rpy="0 0 0"/>
+  </joint>
+
+  <!-- ====================================================================
+       Axle
+  ====================================================================== -->
+  <link name="${tf_prefix}/axle_link">
+    <visual>
+      <origin xyz="0 0 0" rpy="0 ${math.pi/2} 0"/>
+      <material name="clearpath_black"/>
+      <geometry>
+        <mesh filename="package://mock_robot_description/meshes/r100/axle.stl"/>
+      </geometry>
+    </visual>
+  </link>
+  <joint name="axle_joint" type="fixed">
+    <parent link="${tf_prefix}/chassis_link"/>
+    <child  link="${tf_prefix}/axle_link"/>
+    <origin xyz="0 0 ${axle_offset}" rpy="0 0 0"/>
+  </joint>
+
+  <!-- ====================================================================
+       Riser
+  ====================================================================== -->
+  <link name="${tf_prefix}/riser_link">
+    <visual>
+      <origin xyz="0 0 ${riser_height/2}" rpy="0 0 ${math.pi/4}"/>
+      <material name="clearpath_light_grey"/>
+      <geometry>
+        <box size="0.493 0.493 ${riser_height}"/>
+      </geometry>
+    </visual>
+    <collision>
+      <origin xyz="0 0 ${riser_height/2}" rpy="0 0 ${math.pi/4}"/>
+      <geometry>
+        <box size="0.493 0.493 ${riser_height}"/>
+      </geometry>
+    </collision>
+  </link>
+  <joint name="riser_link_joint" type="fixed">
+    <parent link="${tf_prefix}/chassis_link"/>
+    <child  link="${tf_prefix}/riser_link"/>
+    <origin xyz="0 0 ${0.225 - deck_thickness}" rpy="0 0 0"/>
+  </joint>
+
+  <!-- ====================================================================
+       Top plate
+  ====================================================================== -->
+  <link name="${tf_prefix}/top_link">
+    <visual>
+      <origin xyz="0 0 0" rpy="0 0 0"/>
+      <material name="clearpath_black"/>
+      <geometry>
+        <mesh filename="package://mock_robot_description/meshes/r100/top.stl"/>
+      </geometry>
+    </visual>
+    <collision>
+      <origin xyz="0 0 0" rpy="0 0 0"/>
+      <geometry>
+        <mesh filename="package://mock_robot_description/meshes/r100/top.stl"/>
+      </geometry>
+    </collision>
+  </link>
+  <joint name="top_link_joint" type="fixed">
+    <parent link="${tf_prefix}/riser_link"/>
+    <child  link="${tf_prefix}/top_link"/>
+    <origin xyz="0 0 ${riser_height - deck_height + deck_thickness}" rpy="0 0 0"/>
+  </joint>
+
+  <!-- Default top mount hardpoint -->
+  <link name="${tf_prefix}/default_mount"/>
+  <joint name="default_mount_joint" type="fixed">
+    <parent link="${tf_prefix}/riser_link"/>
+    <child  link="${tf_prefix}/default_mount"/>
+    <origin xyz="0 0 ${riser_height + deck_thickness}" rpy="0 0 0"/>
+  </joint>
+
+  <!-- ====================================================================
+       Rocker macro (inlined from rocker.urdf.xacro)
+  ====================================================================== -->
+  <xacro:macro name="r100_rocker" params="prefix location">
+    <link name="${tf_prefix}/${prefix}_rocker_link">
+      <visual>
+        <origin xyz="0 0 0" rpy="${math.pi/2} 0 ${math.pi/2}"/>
+        <material name="clearpath_black"/>
+        <geometry>
+          <mesh filename="package://mock_robot_description/meshes/r100/rocker.stl"/>
+        </geometry>
+      </visual>
+      <inertial>
+        <origin xyz="0 0 0" rpy="${math.pi/2} 0 ${math.pi/2}"/>
+        <mass value="10.267"/>
+        <inertia
+          ixx="0.0288" ixy="2.20484e-6" ixz="-1.3145e-5"
+          iyy="0.4324" iyz="1.8944e-3"
+          izz="0.4130"/>
+      </inertial>
+    </link>
+    <joint name="${prefix}_rocker" type="fixed">
+      <parent link="${tf_prefix}/axle_link"/>
+      <child  link="${tf_prefix}/${prefix}_rocker_link"/>
+      <origin xyz="${location*rocker_offset} 0 0" rpy="0 0 0"/>
+      <axis xyz="1 0 0"/>
+    </joint>
+  </xacro:macro>
+
+  <!-- ====================================================================
+       Mecanum wheel macro (inlined from wheels/mecanum.urdf.xacro)
+  ====================================================================== -->
+  <xacro:macro name="r100_mecanum_wheel" params="parent prefix *joint_pose">
+    <link name="${tf_prefix}/${prefix}_wheel_link">
+      <visual>
+        <origin xyz="0 0 0" rpy="${math.pi/2} 0 0"/>
+        <material name="clearpath_black"/>
+        <geometry>
+          <mesh filename="package://mock_robot_description/meshes/r100/wheels/mecanum.stl"/>
+        </geometry>
+      </visual>
+      <collision>
+        <origin xyz="0 0 0" rpy="${math.pi/2} 0 0"/>
+        <geometry>
+          <cylinder radius="${wheel_radius}" length="${wheel_width}"/>
+        </geometry>
+      </collision>
+      <inertial>
+        <origin xyz="0 0 0" rpy="0 0 0"/>
+        <mass value="${wheel_mass}"/>
+        <inertia
+          ixx="${wheel_mass/12 * (3*wheel_radius**2 + wheel_width**2)}" ixy="0" ixz="0"
+          iyy="${wheel_mass/2  * wheel_radius**2}"                      iyz="0"
+          izz="${wheel_mass/12 * (3*wheel_radius**2 + wheel_width**2)}"/>
+      </inertial>
+    </link>
+    <joint name="${prefix}_wheel_joint" type="continuous">
+      <parent link="${tf_prefix}/${parent}"/>
+      <child  link="${tf_prefix}/${prefix}_wheel_link"/>
+      <xacro:insert_block name="joint_pose"/>
+      <axis xyz="0 1 0"/>
+    </joint>
+  </xacro:macro>
+
+  <!-- ====================================================================
+       Drivetrain: front/rear rockers + mecanum wheels on all four corners
+  ====================================================================== -->
+  <xacro:r100_rocker prefix="front" location="1"/>
+  <xacro:r100_rocker prefix="rear"  location="-1"/>
+
+  <xacro:r100_mecanum_wheel parent="front_rocker_link" prefix="front_left">
+    <origin xyz="0 ${rocker_width/2 + wheel_width/2} 0" rpy="0 0 0"/>
+  </xacro:r100_mecanum_wheel>
+  <xacro:r100_mecanum_wheel parent="front_rocker_link" prefix="front_right">
+    <origin xyz="0 ${-(rocker_width/2 + wheel_width/2)} 0" rpy="0 0 0"/>
+  </xacro:r100_mecanum_wheel>
+  <xacro:r100_mecanum_wheel parent="rear_rocker_link" prefix="rear_left">
+    <origin xyz="0 ${rocker_width/2 + wheel_width/2} 0" rpy="0 0 0"/>
+  </xacro:r100_mecanum_wheel>
+  <xacro:r100_mecanum_wheel parent="rear_rocker_link" prefix="rear_right">
+    <origin xyz="0 ${-(rocker_width/2 + wheel_width/2)} 0" rpy="0 0 0"/>
+  </xacro:r100_mecanum_wheel>
+
+  <!-- ====================================================================
+       Lidar — defines the sensor frame for urdf_raycast_sensors/laserscan_node
+  ====================================================================== -->
+  <link name="${tf_prefix}/lidar_link">
+    <visual>
+      <origin xyz="0 0 0" rpy="0 0 0"/>
+      <material name="clearpath_black"/>
+      <geometry>
+        <cylinder radius="0.05" length="0.07"/>
+      </geometry>
+    </visual>
+    <collision>
+      <origin xyz="0 0 0" rpy="0 0 0"/>
+      <geometry>
+        <cylinder radius="0.05" length="0.07"/>
+      </geometry>
+    </collision>
+  </link>
+  <joint name="lidar_joint" type="fixed">
+    <parent link="${tf_prefix}/base_link"/>
+    <child  link="${tf_prefix}/lidar_link"/>
+    <origin xyz="0 0 0.4" rpy="0 0 0"/>
+  </joint>
+
+  <!-- ====================================================================
+       ros2_control — mock_components/GenericSystem (no real hardware)
+  ====================================================================== -->
+  <ros2_control name="$(arg robot_name)_hardware" type="system">
+    <hardware>
+      <plugin>mock_components/GenericSystem</plugin>
+      <param name="calculate_dynamics">true</param>
+    </hardware>
+    <joint name="front_left_wheel_joint">
+      <command_interface name="velocity"/>
+      <state_interface name="position"/>
+      <state_interface name="velocity"/>
+    </joint>
+    <joint name="front_right_wheel_joint">
+      <command_interface name="velocity"/>
+      <state_interface name="position"/>
+      <state_interface name="velocity"/>
+    </joint>
+    <joint name="rear_left_wheel_joint">
+      <command_interface name="velocity"/>
+      <state_interface name="position"/>
+      <state_interface name="velocity"/>
+    </joint>
+    <joint name="rear_right_wheel_joint">
+      <command_interface name="velocity"/>
+      <state_interface name="position"/>
+      <state_interface name="velocity"/>
+    </joint>
+  </ros2_control>
+
+</robot>

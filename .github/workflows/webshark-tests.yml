@@ -1,0 +1,125 @@
+name: Webshark tests
+
+# Separate from build.yml because that workflow's path filters cover the ROS images and the
+# bake file, and widening them to docker/webshark/** would rebuild every image variant for a
+# change to a test.
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - 'docker/webshark/**'
+      - '.github/workflows/webshark-tests.yml'
+  workflow_dispatch:
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
+
+jobs:
+  lint:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
+        with:
+          node-version: '24'
+      - name: Lint index.html's inline JavaScript
+        working-directory: docker/webshark/tests
+        run: ./lint.sh
+
+      # Static, so it catches a regression the instant the file changes rather than only
+      # when someone happens to curl the running container from outside.
+      - name: Confirm the portable compose file stays localhost-only
+        working-directory: docker/webshark
+        run: grep -q '"127.0.0.1:8085:8085"' webshark.yml
+
+      # Config only: webshark.lab2.yml and webshark.robot.yml resolve bind-mount paths
+      # relative to the repo layout, so this catches a broken overlay without needing the
+      # lab2 fleet or real hardware to actually bring either one up.
+      - name: Validate the lab2 and robot compose overlays
+        working-directory: docker/webshark
+        run: |
+          docker compose -f webshark.yml -f webshark.lab2.yml config >/dev/null
+          docker compose -f webshark.robot.yml config >/dev/null
+
+  browser-suites:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: actions/setup-node@v7
+        with:
+          node-version: '24'
+          cache: npm
+          cache-dependency-path: docker/webshark/tests/package-lock.json
+
+      - name: Install test dependencies
+        working-directory: docker/webshark/tests
+        run: npm ci
+
+      # Fails here with the list of paths it tried, rather than fourteen times over. Needs the
+      # install above, since harness.mjs imports puppeteer-core.
+      - name: Resolve the browser the suites will drive
+        working-directory: docker/webshark/tests
+        run: node -e "import('./harness.mjs').then(h => console.log(h.browserPath()))"
+
+      # The viewer serves exactly one directory, so the fixtures have to be copied in. This is
+      # the same step docker/webshark/README.md gives a reader with no capture of their own.
+      - name: Build and start the viewer
+        working-directory: docker/webshark
+        run: |
+          mkdir -p captures
+          cp fixtures/*.pcap.gz captures/
+          docker compose -f webshark.yml up -d --build
+
+      - name: Wait for sharkd to answer
+        run: |
+          for _ in $(seq 1 60); do
+              if curl -fsS 'http://localhost:8085/webshark/json?req=status&capture=healthy-fastdds.pcap.gz' \
+                   | grep -q frames; then
+                  echo "viewer ready"; exit 0
+              fi
+              sleep 2
+          done
+          echo "viewer did not come up"
+          docker compose -f docker/webshark/webshark.yml logs
+          exit 1
+
+      # The two security fixes from 2026-08-31 (upload route removed, port bound to
+      # localhost) had no regression guard until this and the lint job's port check.
+      - name: Confirm the upload route stays removed
+        run: |
+          status=$(curl -sS -o /dev/null -w '%{http_code}' -X POST http://localhost:8085/webshark/upload)
+          [[ "$status" == "404" ]] || { echo "upload route answered with $status, expected 404"; exit 1; }
+
+      # Re-derives every fixture's frame and match count from the committed .pcap.gz files
+      # rather than trusting the manifest that ships beside them.
+      - name: Verify the fixture library against its manifest
+        working-directory: docker/webshark
+        run: ./record-fixtures.sh verify
+
+      - name: Run the suites
+        working-directory: docker/webshark/tests
+        run: npm run test:ci
+
+      - name: Collect viewer logs on failure
+        if: failure()
+        run: docker compose -f docker/webshark/webshark.yml logs --no-color
+
+      - name: Upload results
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: webshark-test-results
+          path: |
+            docker/webshark/tests/junit.xml
+            docker/webshark/tests/*.png
+          if-no-files-found: warn

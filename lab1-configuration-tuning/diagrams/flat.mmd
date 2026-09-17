@@ -1,0 +1,17 @@
+graph LR
+  subgraph Browser["Your browser"]
+    LB["Lichtblick web UI :8080"]
+  end
+  Bridge["Foxglove bridge :8765"]
+  Bus["flat-net 172.31.0.0/24 - one shared bridge, multicast discovery"]
+  Obs["observer"]
+  R1["mock-robot-1"]
+  R2["mock-robot-2"]
+  RN["mock-robot-N"]
+
+  LB -->|ws://localhost:8765| Bridge
+  Bridge --> Obs
+  Obs --- Bus
+  R1 --- Bus
+  R2 --- Bus
+  RN --- Bus

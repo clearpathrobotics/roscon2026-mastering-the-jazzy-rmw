@@ -1,0 +1,2165 @@
+<!DOCTYPE html>
+<!--
+	index.html
+
+	Copyright (C) 2016 Jakub Zawadzki
+	Copyright (C) 2020 QXIP B.V.
+	Copyright (C) 2026 Rockwell Automation, Inc.
+
+	A modified version of web/index.html from QXIP/node-webshark, taken at commit
+	4615493c36c5020592700b06198b3f9188556e99. That snapshot is GPL-2.0-or-later; the
+	AGPL-3.0 shown on the project's GitHub page today came later and does not apply to it.
+	Changes are listed in docker/webshark/THIRD-PARTY.md in the workshop repository, and in
+	/usr/src/node-webshark/THIRD-PARTY.md inside the image.
+
+	This program is free software; you can redistribute it and/or
+	modify it under the terms of the GNU General Public License
+	as published by the Free Software Foundation; either version 2
+	of the License, or (at your option) any later version.
+
+	This program is distributed in the hope that it will be useful,
+	but WITHOUT ANY WARRANTY; without even the implied warranty of
+	MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+	GNU General Public License for more details.
+
+	You should have received a copy of the GNU General Public License
+	along with this program; if not, write to the Free Software
+	Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA.
+-->
+<html>
+
+<head>
+	<meta charset="utf-8">
+
+	<title>Webshark ${WEBSHARK_VER}</title>
+	<!-- The bundle ships favicon.ico but never declares it, so every load 404s on /favicon.ico. -->
+	<link rel="icon" href="favicon.ico">
+
+	<link rel="stylesheet" href="css/webshark.css" type="text/css">
+	<link rel="stylesheet" href="css/awesomplete.css" type="text/css">
+
+	<script src="js/d3.v4.min.js" type="text/javascript"></script>
+	<script src="js/wavesurfer.min.js" type="text/javascript"></script>
+
+	<link rel="stylesheet" href="css/c3.min.css" type="text/css"></link>
+	<script src="js/c3.min.js" type="text/javascript"></script>
+
+	<style>
+		/* Repo customization: the vendored ul.menul li a rule (css/webshark.css) has no
+		   border/background, so the Endpoints/Statistics/etc toolbar reads as plain text
+		   and is easy to miss entirely. Reuse the file's own conventions rather than
+		   inventing new values: border matches #report_graph and friends, background
+		   matches .wsbutton (the Advanced Graph button next to it). */
+		ul.menul li a { border: 2px solid grey; background-color: #ccc; }
+
+		/* Same treatment for our own added buttons: stock .wsbutton (css/webshark.css)
+		   sets border: none for every button in the app (Bytes/Frames/Hex/Add Graph/...),
+		   which is why the RMW presets and Clear Graphs read as plain text next to the
+		   bordered row above. Scoped to a dedicated class instead of touching .wsbutton
+		   itself, so this doesn't restyle stock buttons we didn't add. */
+		.rmw-added-btn { border: 2px solid grey; }
+
+		/* Dimmed, not disabled. A preset the capture's protocol says nothing about is
+		   still worth a click to confirm it really is empty, and a disabled button reads
+		   as a broken tool to someone who has not used this before. */
+		.rmw-preset-dim { opacity: 0.45; }
+
+		.rmw-graph-bucket { margin-left: 20px; font-size: 13px; }
+		.rmw-graph-bucket select { margin-left: 4px; }
+
+		.rmw-preset-mode { float: left; font-size: 14px; line-height: 26px; margin-right: 12px; }
+		.rmw-preset-group { float: left; font-size: 12px; line-height: 26px; width: 92px; }
+
+		/* div.submenu (css/webshark.css) is positioned and bordered but has no padding,
+		   because every stock submenu holds <a> rows that bring their own. */
+		.rmw-column-menu { padding: 6px 10px; text-align: left; }
+		.rmw-column-menu label { display: block; font-size: 13px; line-height: 20px; white-space: nowrap; }
+		.rmw-column-menu input { margin-right: 6px; }
+
+		.rmw-dissect-port { font-size: 13px; margin-left: 14px; }
+		.rmw-dissect-port input { width: 70px; margin-left: 4px; }
+	</style>
+
+	<!-- Rewritten wholesale by apply_column_visibility(). -->
+	<style id="column_visibility"></style>
+
+	<script src="js/webshark-app.js" type="text/javascript"></script>
+
+	<script type="text/javascript">
+		var g_webshark_file = "";
+		var g_webshark_url = '/webshark/json';
+		var g_webshark_on_frame_change = null;
+		var g_webshark_prototree_html = null;
+		var g_webshark_hexdump = null;
+		var g_webshark = null;
+		var g_webshark_packet_list = null;
+		var g_webshark_interval = null;
+		var g_webshark_iograph = null;
+
+		var g_webshark_files = null;
+		var g_webshark_display_filter = null;
+
+		var g_ws_ftypes = [ ];
+		var g_ws_taps  = [ ];
+		var g_ws_stats = [ ];
+		var g_ws_nstat = [ ];
+		var g_ws_eo    = [ ];
+		var g_ws_follow= [ ];
+		var g_ws_seqa  = [ ];
+		var g_ws_srt   = [ ];
+		var g_ws_rtd   = [ ];
+		var g_ws_convs = [ ];
+
+		var g_ws_pref = { };
+
+		var g_ws_default_pref =
+		{
+			/* Source and destination shrink from 154 to make room for the ports and the delta.
+			   They only ever hold an IPv4 address. %i takes whatever is left. */
+			columns_width:
+			{
+				'%m':  1.7 * 59,
+				'%t':  1.7 * 70,
+				'%Tt': 1.7 * 52,
+				'%s':  1.7 * 80,
+				'%S':  1.7 * 45,
+				'%d':  1.7 * 80,
+				'%D':  1.7 * 45,
+				'%p':  1.7 * 48,
+				'%L':  1.7 * 42,
+				// '%i'
+			},
+
+			/* Delta is the gap from the previous frame, which is what turns "data arrives in
+			   bursts" into a number you can read. The ports sit beside their own address
+			   because the domain id determines them (7400 + 250 * domain), so a domain
+			   mismatch is visible here without opening a frame. */
+			columns:
+			[
+				{ "No.":          "%m" },
+				{ "Time":         "%t" },
+				{ "Delta":        "%Tt" },
+				{ "Source":       "%s" },
+				{ "SPort":        "%S" },
+				{ "Destination":  "%d" },
+				{ "DPort":        "%D" },
+				{ "Protocol":     "%p" },
+				{ "Length":       "%L" },
+				{ "Info":         "%i" },
+//				{ "tcp.stream": "tcp.stream:0" },
+			],
+
+			layout_optimize_height: true
+		};
+
+		function setup_user_toolbar(user)
+		{
+			if (user)
+			{
+				var el = document.getElementById('user_login');
+				el.innerHTML = user;
+				el.style.display = 'inline';
+
+				document.getElementById('user_registered').style.display = "inline";
+			}
+			else
+			{
+				document.getElementById('user_anon').style.display = "inline";
+			}
+		}
+
+		/* Stock WSPacketList.setPackets (webshark-app.js) fills the packet-list rows but
+		   never touches the detail/bytes panes below. A filter matching zero frames then
+		   leaves the previously-selected packet's details on screen, which reads as the
+		   filter silently doing nothing rather than "no matches". Wrap it rather than
+		   patch the vendored file, matching the frontend's other small targeted overrides. */
+		(function()
+		{
+			var orig_setPackets = window.webshark.WSPacketList.prototype.setPackets;
+			window.webshark.WSPacketList.prototype.setPackets = function(packets)
+			{
+				orig_setPackets.call(this, packets);
+				if (packets.length === 0)
+				{
+					document.getElementById('ws_packet_detail_view').innerHTML = '';
+					document.getElementById('ws_packet_bytes_view').innerHTML = '';
+				}
+			};
+		})();
+
+		function setup_frame_toolbar()
+		{
+			document.getElementById('toolbar_frame').style.display = 'block';
+
+			var comment_a = document.getElementById('toolbar_frame_comment');
+			var timeref_a = document.getElementById('toolbar_frame_timeref');
+
+			/* Edit comment */
+			{
+				comment_a.addEventListener("click", window.webshark.webshark_frame_comment_on_click);
+				comment_a.addEventListener("mouseover", window.webshark.webshark_frame_comment_on_over);
+
+				var glyph = window.webshark.webshark_glyph_img('comment', 32);
+				glyph.setAttribute('alt', 'Comment');
+				glyph.setAttribute('title', 'Comment');
+				window.webshark.dom_set_child(comment_a, glyph);
+			}
+
+			/* Set time reference */
+			{
+				timeref_a.addEventListener("click", window.webshark.webshark_frame_timeref_on_click);
+
+				glyph = window.webshark.webshark_glyph_img('timeref', 32);
+				glyph.setAttribute('alt', 'Time reference');
+				glyph.setAttribute('title', 'Time reference');
+				window.webshark.dom_set_child(timeref_a, glyph);
+			}
+
+			g_webshark_on_frame_change = function (framenum, data)
+			{
+				comment_a['data_ws_frame'] = framenum;
+				timeref_a['data_ws_frame'] = framenum;
+			};
+		}
+
+		function create_tap_menu(id, taps)
+		{
+			var node = document.getElementById(id);
+
+			for (var i = 0; i < taps.length; i++)
+			{
+				var li = document.createElement("li");
+				var a = document.createElement("a");
+
+				var title = taps[i].name;
+				var tap = taps[i].tap;
+
+/*
+TODO: Give user possible to generate multiple reports by selecting checkboxes
+				var inp = document.createElement('input');
+				inp.setAttribute('type', 'checkbox');
+				a.appendChild(inp);
+ */
+
+				a.appendChild(document.createTextNode(title));
+				a.setAttribute("target", "_blank");
+				a.setAttribute("href", window.webshark.webshark_create_url(
+					{
+						file: g_webshark_file,
+						tap: tap
+					}));
+
+				a.setAttribute("id", "menu_tap_" + tap);
+				// a.addEventListener("click", window.webshark.popup_on_click);
+
+				li.appendChild(a);
+				node.appendChild(li);
+			}
+		}
+
+		function render_phs_rows(table, protos, level, total_frames, total_bytes)
+		{
+			for (var i = 0; i < protos.length; i++)
+			{
+				var node = protos[i];
+				var tr = document.createElement('tr');
+
+				var cells = [
+					new Array(level + 1).join('    ') + node['proto'],
+					node['frames'],
+					total_frames ? (100 * node['frames'] / total_frames).toFixed(2) + '%' : '-',
+					node['bytes'],
+					total_bytes ? (100 * node['bytes'] / total_bytes).toFixed(2) + '%' : '-'
+				];
+
+				for (var c = 0; c < cells.length; c++)
+				{
+					var td = document.createElement('td');
+
+					td.className = 'ws_border';
+					td.appendChild(document.createTextNode(cells[c]));
+					tr.appendChild(td);
+				}
+
+				table.appendChild(tr);
+
+				if (node['protos'])
+					render_phs_rows(table, node['protos'], level + 1, total_frames, total_bytes);
+			}
+		}
+
+		function render_phs_tap()
+		{
+			/* Repo customization: sharkd answers req=tap&tap0=phs with a full protocol tree,
+			   but webshark_render_tap() in the vendored webshark-app.js has no branch for
+			   type 'phs', so the stock menu entry opened an empty panel with no error. That
+			   function is module-internal and cannot be wrapped, so the request and the table
+			   are done here instead. Expect rtps rows but no zenoh row. Zenoh is dissected,
+			   it just never reaches this tap, and stock `tshark -q -z io,phs` drops it the
+			   same way. Cause not established 2026-08-21, see README. */
+			window.webshark.webshark_json_get(
+				{
+					req: 'tap',
+					tap0: 'phs',
+					capture: g_webshark_file
+				},
+				function(data)
+				{
+					var container = document.getElementById('ws_tap_table');
+					var taps = data ? data['taps'] : null;
+					var protos = (taps && taps.length) ? taps[0]['protos'] : null;
+
+					container.appendChild(window.webshark.dom_create_label("Protocol Hierarchy Statistics"));
+
+					/* A capture sharkd cannot open answers {"err":1,"errstr":...} with no taps
+					   at all, so say which of the two happened rather than leaving a blank
+					   panel, which is the failure this whole function exists to remove. */
+					if (!protos || !protos.length)
+					{
+						container.appendChild(document.createTextNode(data && data['err']
+							? "Could not read this capture: " + (data['errstr'] || "unknown error")
+							: "No protocols in this capture."));
+						return;
+					}
+
+					var table = document.createElement('table');
+					var header = document.createElement('tr');
+					var titles = [ 'Protocol', 'Frames', '% Frames', 'Bytes', '% Bytes' ];
+
+					table.className = 'ws_border';
+					header.className = 'header';
+
+					for (var i = 0; i < titles.length; i++)
+					{
+						var td = document.createElement('td');
+
+						td.className = 'ws_border';
+						td.appendChild(document.createTextNode(titles[i]));
+						header.appendChild(td);
+					}
+
+					table.appendChild(header);
+
+					/* Percentages are against the root node, which sharkd always reports as
+					   `frame` covering the whole capture. */
+					render_phs_rows(table, protos, 0, protos[0]['frames'], protos[0]['bytes']);
+
+					container.appendChild(table);
+				});
+		}
+
+		function load_taps(taps)
+		{
+			var others = [ ];
+
+			for (var i = 0; i < taps.length; i++)
+			{
+				if (taps[i] == 'phs')
+					render_phs_tap();
+				else
+					others.push(taps[i]);
+			}
+
+			if (others.length)
+				window.webshark.webshark_load_tap(others);
+		}
+
+		function set_filter(filter)
+		{
+			g_webshark.setFilter(filter);
+		}
+
+		/* The title bar carries the capture's own totals and never moves when a filter applies,
+		   so without this a filter that matched nothing looks exactly like one that failed, or
+		   like a capture that has been deleted underneath the page. Wireshark answers that in
+		   its status bar. Blank while no filter is set, since the title already has the total. */
+		function render_displayed_count(filter, shown)
+		{
+			var span = document.getElementById('display_filter_count');
+			if (!span) return;
+
+			if (!filter || g_last_frame_count == null)
+			{
+				window.webshark.dom_set_child(span, document.createTextNode(''));
+				return;
+			}
+
+			span.style.color = (shown > 0) ? '#666' : '#a00';
+			window.webshark.dom_set_child(span, document.createTextNode(
+				shown + ' of ' + g_last_frame_count + ' displayed'));
+		}
+
+		function preset_filter(filter)
+		{
+			/* set_filter() alone applies the filter (confirmed: a real filtered 'frames'
+			   request goes out) but never touches the #display_filter box's visible text -
+			   g_webshark_display_filter is var-scoped inside run(), not reachable from here.
+			   A preset button needs the box to visibly show what it just applied. */
+			document.getElementById('display_filter').value = filter;
+			set_filter(filter);
+		}
+
+		/* One table drives the preset row: each entry carries the filter, the question the
+		   button answers, and the wire protocol it can say anything about. The tooltips and
+		   the dimming below both read from here, so adding a preset is one entry rather than
+		   an entry plus a branch in each of them. */
+		var g_rmw_presets = {
+			spdp: {
+				label: 'SPDP',
+				proto: 'rtps',
+				filter: 'rtps.sm.wrEntityId == 0x000100c2',
+				title: 'Participant discovery. Every DDS participant announces itself on a timer, '
+				     + 'so this answers who is on the network. A robot that never appears '
+				     + 'here is not being seen by others, whatever its own logs say.'
+			},
+			sedp: {
+				label: 'SEDP',
+				proto: 'rtps',
+				/* 0x000003c2/0x000004c2 are the SEDP publications/subscriptions writers. The
+				   old 0x000200c2 is the participant-message (liveliness) writer, which returns
+				   a plausible non-zero count that reads like discovery but carries no topic
+				   name. sm.id == 0x15 keeps only the DATA submessages, because SEDP runs over
+				   reliable builtin endpoints, so the entity ids on their own also match all
+				   of those endpoints' HEARTBEAT and ACKNACK. How much that inflates the count
+				   is vendor-dependent: 449444 frames against 11606 announcements on a Fast DDS
+				   capture, 1482 against 824 on a Cyclone one. SPDP needs no equivalent term
+				   because its writer is best-effort. A display filter matches fields anywhere
+				   in a frame, not within one submessage, so a frame that bundles someone
+				   else's DATA with a SEDP HEARTBEAT still matches. Measured at 8 frames out of
+				   824 on Cyclone, which bundles more than Fast DDS does. Wireshark has no way
+				   to scope a filter to a submessage, so this is the floor, not a bug. */
+				filter: 'rtps.sm.id == 0x15 && (rtps.sm.wrEntityId == 0x000003c2 || rtps.sm.wrEntityId == 0x000004c2)',
+				title: 'Endpoint discovery: the publishers and subscribers each participant '
+				     + 'offers, carrying topic and type names. This is where you find out whether '
+				     + 'a topic was ever advertised. It only fires as nodes start, so a capture '
+				     + 'begun after the stack was already up is missing it. A few matches carry '
+				     + 'no announcement of their own, because RTPS packs several submessages into '
+				     + 'one frame and a filter matches the whole frame: 8 frames in 824 on Cyclone, '
+				     + 'none on Fast DDS.'
+			},
+			zenoh_declare: {
+				label: 'Zenoh Declare',
+				proto: 'zenoh',
+				filter: 'zenoh.body.frame.payload.body.declare.body.declare_key_expr.wire_expr',
+				title: 'Zenoh\'s equivalent of endpoint discovery: key expressions declared to '
+				     + 'the router, which is where the topic names are. Same timing catch as SEDP, '
+				     + 'it only appears as nodes join, and on Zenoh the router has to be restarted '
+				     + 'to make it happen again.'
+			},
+			fragments: {
+				label: 'Fragments',
+				proto: 'rtps',
+				/* DATA_FRAG only, deliberately not `|| ip.flags.mf == 1 || ip.frag_offset > 0`.
+				   The combined version cannot tell the stacks apart: on one impaired 30s window
+				   it matched 25025 frames on Fast DDS and 26726 on Cyclone, because Cyclone's
+				   DATA_FRAG submessages travel inside IP-fragmented datagrams and are a subset
+				   of that count rather than an addition to it. The protocol column does not
+				   separate them either, 768 RTPS against 2544, since the first fragment of every
+				   datagram carries the RTPS header and dissects as RTPS whether or not the stack
+				   fragments at the RTPS layer. Scoped to 0x16 the same two windows read 0
+				   and 2595. */
+				filter: 'rtps.sm.id == 0x16',
+				title: 'RTPS-level fragmentation: samples too big for one datagram, split by the '
+				     + 'middleware itself. Zero here means the stack fragments at the IP layer '
+				     + 'instead. Fast DDS sends the whole sample as one large datagram and lets '
+				     + 'the kernel split it, so losing any one fragment costs the entire sample. '
+				     + 'Cyclone splits it here, so a drop costs one fragment.'
+			},
+			retransmit: {
+				label: 'Retransmits',
+				proto: 'any',
+				filter: 'rtps.sm.acknack_analysis == 3 || tcp.analysis.retransmission',
+				title: 'Repair traffic: RTPS ACKNACKs that actually asked for a resend, plus TCP '
+				     + 'retransmissions. This is the one that answers whether the link is losing '
+				     + 'data. A low steady count is normal. A spike lining up with a dropout is '
+				     + 'the thing to chase.'
+			}
+		};
+
+		/* A second table, kept apart from g_rmw_presets because these are not filters. Each
+		   opens one of sharkd's taps as a report, the same thing the Statistics menus do, so
+		   they carry a tap name instead of a filter and take no part in the list/rate toggle.
+		   sharkd advertises 52 conversation tables, 47 stats and 13 follow types. These four
+		   are the ones that answer a question a ROS 2 operator actually asks.
+		   'probe' is a display filter used only to grey the button out when the tap would
+		   come back empty. */
+		var g_traffic_taps = {
+			talkers: {
+				label: 'Talkers',
+				tap: 'endpt:IPv4',
+				title: 'Every address in the capture, ranked by bytes. The fastest answer to '
+				     + 'which machine is filling the link, and the first thing to look at when '
+				     + 'a fleet slows down without any one node reporting a problem.'
+			},
+			conversations: {
+				label: 'Conversations',
+				tap: 'conv:UDP',
+				title: 'Address and port pairs with their byte counts. The ports matter on DDS: '
+				     + 'the domain id sets them, so this shows which participants are actually '
+				     + 'talking to each other rather than just who is on the network.'
+			},
+			warnings: {
+				label: 'Warnings',
+				tap: 'expert',
+				probe: '_ws.expert',
+				title: 'Wireshark\'s own analysis: retransmissions, malformed frames, checksum '
+				     + 'errors. Greyed out when the capture has none, which is the normal state '
+				     + 'for a healthy UDP capture and not a sign anything is wrong.'
+			},
+			protocols: {
+				label: 'Protocols',
+				tap: 'phs',
+				title: 'What is on the wire, as a tree with frame and byte counts. Confirms '
+				     + 'whether a capture is RTPS or Zenoh before you start filtering. Note it '
+				     + 'lists rtps but never zenoh, an upstream gap in the Zenoh plugin.'
+			}
+		};
+
+		function install_traffic_tooltips()
+		{
+			for (var name in g_traffic_taps)
+			{
+				var button = document.getElementById('traffic_' + name);
+				if (button)
+					button.title = g_traffic_taps[name].title;
+			}
+		}
+
+		function run_traffic_tap(name)
+		{
+			var entry = g_traffic_taps[name];
+			if (!entry || !g_webshark_file)
+				return;
+
+			/* Same URL the Statistics menu builds, same new tab. The tap view replaces the
+			   packet list with a report, so opening in place would lose the capture you are
+			   working on. */
+			window.open(window.webshark.webshark_create_url(
+				{
+					file: g_webshark_file,
+					tap: entry.tap
+				}), '_blank');
+		}
+
+		var g_wire_names = { rtps: 'RTPS (DDS)', zenoh: 'Zenoh' };
+
+		var g_preset_mode = 'list';
+
+		function set_preset_mode(mode)
+		{
+			g_preset_mode = (mode == 'rate') ? 'rate' : 'list';
+
+			/* Also called programmatically by the ?graph= deep-link, which would otherwise
+			   render a graph while the radio still reads Packet list. */
+			var radio = document.getElementById('preset_mode_' + g_preset_mode);
+			if (radio)
+				radio.checked = true;
+		}
+
+		function run_preset(name)
+		{
+			var preset = g_rmw_presets[name];
+			if (!preset)
+				return;
+
+			if (g_preset_mode == 'rate')
+				apply_graph_preset('packets', preset.filter, preset.label);
+			else
+				preset_filter(preset.filter);
+		}
+
+		function apply_preset_relevance(wire)
+		{
+			/* Called with null before detection resolves and whenever nothing was detected,
+			   which leaves every preset at full strength. The four count() calls behind the
+			   badge are async and this row renders first, so all-enabled has to be the
+			   starting state or the row flickers grey on every load. */
+			for (var name in g_rmw_presets)
+			{
+				var preset = g_rmw_presets[name];
+				var button = document.getElementById('preset_' + name);
+				if (!button)
+					continue;
+
+				if (wire && preset.proto != 'any' && preset.proto != wire)
+				{
+					button.classList.add('rmw-preset-dim');
+					button.title = preset.title + '\n\nThis capture looks like '
+					             + g_wire_names[wire] + ', so this one is unlikely to match. '
+					             + 'Still clickable.';
+				}
+				else
+				{
+					button.classList.remove('rmw-preset-dim');
+					button.title = preset.title;
+				}
+			}
+
+			/* The dissection settings are protocol-specific in the same way the presets are,
+			   so they follow the same rule. Without this the RTPS toggles stay at full
+			   strength on a Zenoh capture while SPDP beside them fades. */
+			for (var dname in g_dissect_prefs)
+			{
+				var entry = g_dissect_prefs[dname];
+				var toggle = document.getElementById('dissect_' + dname);
+				if (!toggle)
+					continue;
+
+				if (wire && entry.proto != wire)
+				{
+					toggle.classList.add('rmw-preset-dim');
+					toggle.title = entry.title + '\n\nThis capture looks like '
+					             + g_wire_names[wire] + ', which this setting does not affect. '
+					             + 'Still clickable.';
+				}
+				else
+				{
+					toggle.classList.remove('rmw-preset-dim');
+					toggle.title = entry.title;
+				}
+			}
+
+			var port_label = document.getElementById('dissect_zenoh_label');
+			if (port_label)
+			{
+				if (wire && wire != 'zenoh')
+					port_label.classList.add('rmw-preset-dim');
+				else
+					port_label.classList.remove('rmw-preset-dim');
+			}
+		}
+
+		function filter_files(filter)
+		{
+			g_webshark_files.setFilesFilter(filter);
+		}
+
+		function set_field_filter(filter)
+		{
+			g_webshark_prototree_html.setFieldFilter(filter);
+		}
+
+		var g_last_frame_count = null;
+		var g_capture_duration = null;
+
+		/* Bucket width for the Advanced graph, in ms, or 'auto' to pick from the capture's
+		   own duration. See graph_interval_ms(). */
+		var g_graph_interval = 'auto';
+		var g_graph_last_interval = 1000;
+
+		/* sharkd answers a capture it cannot open with {"err":1,"errstr":"Nope"} and no counts
+		   at all, and a truncated one with counts but no filesize. Both callers used to build
+		   the title straight out of the response, so either case printed "undefined" at the
+		   top of the page. Returns false when there is nothing readable to describe, which is
+		   the caller's signal to stop before it probes a file that is not there. */
+		function describe_capture(data)
+		{
+			var label_span = document.getElementById('toolbar_capture_description');
+			var name = (data && data['filename']) ? data['filename'] : g_webshark_file;
+
+			if (!data || data['err'])
+			{
+				label_span.style.color = '#a00';
+				window.webshark.dom_set_child(label_span, document.createTextNode(
+					' ' + name + ' can no longer be opened. Go back to the file list for a current capture.'));
+				return false;
+			}
+
+			var parts = [];
+			if (data['frames'] !== undefined) parts.push(data['frames'] + ' frames');
+			if (data['duration'] !== undefined) parts.push(data['duration'] + ' seconds');
+			if (data['filesize'] !== undefined) parts.push(data['filesize'] + ' bytes');
+
+			label_span.style.color = '';
+			window.webshark.dom_set_child(label_span, document.createTextNode(
+				' ' + name + (parts.length ? ' (' + parts.join(', ') + ')' : '')));
+			return true;
+		}
+
+		function refresh_capture()
+		{
+			/* Re-issue 'load' explicitly (not just 'status'): sharkd caches a session per
+			 * filename and only auto-loads once, at session creation, so an already-open
+			 * capture needs an explicit re-load to pick up frames appended since. */
+			if (!g_webshark_file) return;
+
+			var status_span = document.getElementById('toolbar_capture_refresh_status');
+			status_span.style.color = '#666';
+			window.webshark.dom_set_child(status_span, document.createTextNode('refreshing...'));
+
+			window.webshark.webshark_json_get({ req: 'load', capture: g_webshark_file }, function()
+			{
+				g_webshark.load(g_webshark_file, function(data)
+				{
+					/* The ring in `scripts/workshop capture` deletes the window a viewer has
+					   open, so this is the ordinary case rather than a corner one. Refreshing past that point
+					   used to report "no new frames", re-run the wire probes against a file
+					   that was not there, and un-dim every preset when they failed, which
+					   together say the fleet went quiet. The last good totals and packet list
+					   stay as they are, stale rather than wrong. */
+					if (!describe_capture(data))
+					{
+						status_span.style.color = '#a00';
+						window.webshark.dom_set_child(status_span,
+							document.createTextNode('capture unavailable'));
+						return;
+					}
+
+					g_capture_duration = data['duration'];
+
+					/* A silent no-op refresh reads as broken to a live audience. Say
+					   explicitly whether anything new arrived, not just reload quietly. */
+					var new_count = data['frames'];
+					var delta = (g_last_frame_count != null) ? new_count - g_last_frame_count : 0;
+					g_last_frame_count = new_count;
+
+					status_span.style.color = (delta > 0) ? '#2a7' : '#666';
+					window.webshark.dom_set_child(status_span, document.createTextNode(
+						(delta > 0) ? ('+' + delta + ' new') : 'no new frames'));
+
+					g_webshark.setFilter(g_webshark.filter);
+					compute_capture_summary();
+				});
+			});
+		}
+
+		function run()
+		{
+			var opt = window.webshark.webshark_get_params_url();
+
+			g_webshark_file = opt['file'];
+
+			var frame = opt['frame'];
+			var tap = opt['tap'];
+			var follow = opt['follow'];
+			var filter = opt['filter'];
+			var dir = opt['dir'];
+			var graph = opt['graph'];
+
+			var g_webshark_display_filter = new window.webshark.WSDisplayFilter({
+				contentId: "display_filter"
+			});
+
+			if (follow) {
+
+				document.title = "Following " + follow + ' (' + filter + ') ' + g_webshark_file + " - " + document.title;
+
+				document.getElementById('toolbar_capture').style.display = 'none';
+				document.getElementById('ws_packet_list_view').style.display = 'none';
+				document.getElementById('ws_packet_detail_view').style.display = 'none';
+				document.getElementById('ws_packet_bytes_view').style.display = 'none';
+
+				document.getElementById('toolbar_tap').style.display = 'block';
+
+				window.webshark.webshark_load_follow(follow, filter);
+
+			} else if (tap) {
+				document.title = "Report of " + g_webshark_file + " - " + document.title;
+
+				document.getElementById('toolbar_capture').style.display = 'none';
+				document.getElementById('ws_packet_list_view').style.display = 'none';
+				document.getElementById('ws_packet_detail_view').style.display = 'none';
+				document.getElementById('ws_packet_bytes_view').style.display = 'none';
+
+				document.getElementById('toolbar_tap').style.display = 'block';
+
+				load_taps(tap.split(";"));
+
+			} else if (frame) {
+				document.title = g_webshark_file + " #" + frame + " - " + document.title;
+
+				window.webshark.webshark_load_frame(frame, true);
+
+				document.getElementById('toolbar_capture').style.display = 'none';
+				document.getElementById('ws_packet_list_view').style.display = 'none';
+
+				setup_frame_toolbar();
+
+			} else if (g_webshark_file) {
+				var new_title = g_webshark_file + " - " + document.title;
+
+				document.title = "Loading: " + new_title;
+
+				/* A large capture leaves this page blank until sharkd finishes reading it,
+				   which reads as broken rather than working on a multi-hundred-MB file. The
+				   browser tab already says "Loading:", but nothing on the page itself did.
+				   describe_capture() overwrites this the moment the real response arrives,
+				   success or error alike, so there is nothing to clean up here. */
+				window.webshark.dom_set_child(document.getElementById('toolbar_capture_description'),
+					document.createTextNode(' Loading ' + g_webshark_file + '...'));
+
+				setup_frame_toolbar();
+
+				if (g_ws_pref['layout_optimize_height'] == true)
+				{
+					document.getElementById('ws_packet_detail_view').style.width = '57%';
+					document.getElementById('ws_packet_bytes_view').style.width = '42%';
+					document.getElementById('ws_packet_bytes_view').style.height =
+						document.getElementById('ws_packet_detail_view').style.height;
+				}
+
+				g_webshark.load(g_webshark_file, function(data)
+				{
+				document.title = new_title;
+
+				if (filter)
+				{
+					g_webshark_display_filter.setFilter(filter);
+				}
+
+				/* Back to file list */
+				{
+					var back_a = document.getElementById('toolbar_capture_files');
+					back_a.setAttribute("href", "index.html");
+
+					var glyph = window.webshark.webshark_glyph_img('files', 16);
+					glyph.setAttribute('alt', 'Back to file list');
+					glyph.setAttribute('title', 'Back to file list');
+					window.webshark.dom_set_child(back_a, glyph);
+				}
+
+				/* A capture can be gone before this page ever renders it: a live window
+				   rotates out, or the link came from someone else's session. Without this it
+				   arrives as a title reading "undefined frames" over an empty packet list,
+				   which is indistinguishable from a capture that is simply empty. Everything
+				   below reads counts out of the response, so stop here. The back-to-file-list
+				   link above is set up already and is the way out. */
+				if (!describe_capture(data))
+					return;
+
+				document.getElementById('toolbar_capture_refresh').style.display = 'inline';
+				g_last_frame_count = data['frames'];
+				g_capture_duration = data['duration'];
+				compute_capture_summary();
+
+				/* Link to download capture file */
+				{
+					var down_a = document.getElementById('toolbar_capture_down');
+					down_a.setAttribute("target", "_blank");
+					down_a.setAttribute("href", window.webshark.webshark_create_api_url(
+						{
+							req: 'download',
+							capture: g_webshark_file,
+							token: 'self'
+						}));
+					down_a.addEventListener("click", window.webshark.popup_on_click_a);
+
+					glyph = window.webshark.webshark_glyph_img('download', 16);
+					glyph.setAttribute('alt', 'Download capture file');
+					glyph.setAttribute('title', 'Download capture file');
+					window.webshark.dom_set_child(down_a, glyph);
+				}
+
+				/* Capture file settings */
+				{
+					var pref_a = document.getElementById('toolbar_capture_settings');
+					pref_a.setAttribute("target", "_blank");
+					pref_a.setAttribute("href", "config.html?file=" + g_webshark_file);
+					pref_a.addEventListener("click", window.webshark.popup_on_click_a);
+
+					glyph = window.webshark.webshark_glyph_img('settings', 16);
+					glyph.setAttribute('alt', 'Configure capture file');
+					glyph.setAttribute('title', 'Configure capture file');
+					window.webshark.dom_set_child(pref_a, glyph);
+				}
+
+				/* TODO: link to download ssl-sessions  */
+
+				if (opt['hide_menu'] == undefined)
+				{
+					create_tap_menu('report_menu', g_ws_taps);
+					create_tap_menu('report_menu_conv', g_ws_convs);
+					create_tap_menu('report_menu_srt', g_ws_srt);
+					create_tap_menu('report_menu_srt', g_ws_rtd);
+					create_tap_menu('report_menu_stat', g_ws_stats);
+					create_tap_menu('report_menu_stat2', g_ws_nstat);
+					create_tap_menu('report_menu_eo', g_ws_eo);
+					create_tap_menu('report_menu', g_ws_follow);
+					create_tap_menu('report_menu', g_ws_seqa);
+				}
+
+				set_filter(filter);
+
+				/* sharkd keeps preferences on the per-capture session, so a saved toggle has
+				   to be re-sent for each capture opened. Sends nothing when everything is at
+				   its default, which leaves the first fetch alone. */
+				apply_dissect_prefs(redraw_frames);
+
+				/* Restored rows carry filters but no data, so draw them once rather than
+				   leave an Advanced Graph panel of filled-in rows over an empty chart. */
+				if (g_graphs_restored)
+					render_graph();
+
+				/* Deep-link an Advanced Graph line, e.g. ?file=...&graph=packets&filter=...,
+				   so a lab/cheat-sheet link can land straight on a rendered graph instead of
+				   narrating Advanced Graph -> Add Graph -> type filter -> Render. */
+				if (graph)
+				{
+					set_preset_mode('rate');
+					apply_graph_preset(graph, filter);
+				}
+
+				});
+
+			} else {
+				document.title = "Capture files - " + document.title;
+
+				/* No upload link: the Dockerfile deletes both upload.html and the backend route
+				   it posted to (see THIRD-PARTY.md), so the link would 404. */
+
+				document.getElementById('toolbar_capture').style.display = 'none';
+				document.getElementById('toolbar_capture_refresh').style.display = 'none';
+				document.getElementById('ws_packet_list_view').style.display = 'none';
+				document.getElementById('ws_packet_detail_view').style.display = 'none';
+				document.getElementById('ws_packet_bytes_view').style.display = 'none';
+
+				document.getElementById('files_view').style.display = 'block';
+
+				g_webshark_files.loadFiles(dir);
+			}
+
+			document.getElementById("ws_div").style.display = "block";
+		}
+
+		function load_preferences()
+		{
+			for (var key in g_ws_default_pref)
+			{
+				if (g_ws_pref[key] == undefined)
+					g_ws_pref[key] = g_ws_default_pref[key];
+			}
+		}
+
+		function render_interval(new_mode)
+		{
+			g_webshark_interval.mode = new_mode;
+			g_webshark_interval.render_interval();
+
+			if (new_mode != 'fps')
+				document.getElementById('capture_interval_fps').classList.remove('selected');
+			if (new_mode != 'bps')
+				document.getElementById('capture_interval_bps').classList.remove('selected');
+			document.getElementById('capture_interval_' + new_mode).classList.add('selected');
+		}
+
+		function show_hide_graph(id, id2)
+		{
+			var elem = document.getElementById(id);
+			var elem2 = document.getElementById(id2);
+
+			if (elem.style['display'] != 'block')
+			{
+				elem.style['display'] = 'block';
+				elem2.classList.add('selected');
+			}
+			else
+			{
+				elem.style['display'] = "none";
+				elem2.classList.remove('selected');
+			}
+		}
+
+		function compute_capture_summary()
+		{
+			/* One-shot capture-level badge: which RMW/vendor produced this traffic, and
+			   how many genuine repair (retransmit) events it contains. Deliberately not a
+			   per-packet column, since the vendor is constant across a whole capture and
+			   a column would just repeat the same text on every row. Each count is a
+			   cheap 'intervals' request (frame count only, no per-packet download), the
+			   same request Webshark.prototype.update() makes internally. */
+			var summary_span = document.getElementById('toolbar_capture_summary');
+			window.webshark.dom_set_child(summary_span, document.createTextNode(''));
+			apply_preset_relevance(null);
+			if (!g_webshark_file) return;
+
+			function count(filter, cb)
+			{
+				window.webshark.webshark_json_get(
+					{ req: 'intervals', capture: g_webshark_file, filter: filter, interval: 1000 * 60 * 60 * 24 },
+					function(data) { cb(data && data['frames'] ? data['frames'] : 0); });
+			}
+
+			/* Grey out a Traffic button whose tap would open empty. Only Warnings needs it:
+			   expert info is legitimately absent from a clean UDP capture, and a button that
+			   opens a blank report reads as broken. Reuses the same cheap counting request
+			   as the badge rather than running the tap itself. */
+			for (var traffic_name in g_traffic_taps)
+			{
+				(function(name, probe)
+				{
+					if (!probe)
+						return;
+
+					count(probe, function(n)
+					{
+						var button = document.getElementById('traffic_' + name);
+						if (!button)
+							return;
+
+						if (n > 0)
+						{
+							button.classList.remove('rmw-preset-dim');
+							button.title = g_traffic_taps[name].title;
+						}
+						else
+						{
+							button.classList.add('rmw-preset-dim');
+							button.title = g_traffic_taps[name].title
+							             + '\n\nThis capture has none, so the report would be empty.';
+						}
+					});
+				})(traffic_name, g_traffic_taps[traffic_name].probe);
+			}
+
+			count('rtps.vendorId == 0x0110', function(cyclone) {
+			count('rtps.vendorId == 0x010f', function(fast) {
+			count('zenoh', function(zenoh) {
+			count('rtps', function(rtps_any)
+			{
+				var proto, wire;
+				if (cyclone > 0) { proto = 'Cyclone DDS (RTPS)'; wire = 'rtps'; }
+				else if (fast > 0) { proto = 'Fast DDS (RTPS)'; wire = 'rtps'; }
+				else if (zenoh > 0) { proto = 'Zenoh'; wire = 'zenoh'; }
+				else if (rtps_any > 0) { proto = 'RTPS (unrecognized vendor)'; wire = 'rtps'; }
+				else return;  /* not an RMW capture: badge stays blank, presets stay full strength */
+
+				apply_preset_relevance(wire);
+
+				/* A matching wire is not enough for a setting that also needs something in the
+				   capture, so this runs after apply_preset_relevance and only ever takes
+				   strength away. Same shape as the Warnings probe above, and it lives here
+				   rather than in apply_preset_relevance because count() is scoped to this
+				   function. */
+				for (var dissect_name in g_dissect_prefs)
+				{
+					(function(name, entry)
+					{
+						if (!entry.probe || entry.proto != wire)
+							return;
+
+						count(entry.probe, function(n)
+						{
+							var button = document.getElementById('dissect_' + name);
+							if (!button || n > 0)
+								return;
+
+							button.classList.add('rmw-preset-dim');
+							button.title = entry.title + '\n\n' + entry.absent;
+						});
+					})(dissect_name, g_dissect_prefs[dissect_name]);
+				}
+
+				count('rtps.sm.acknack_analysis == 3 || tcp.analysis.retransmission', function(repairs)
+				{
+					var text = proto + ' · ' + repairs + (repairs == 1 ? ' repair event' : ' repair events');
+					window.webshark.dom_set_child(summary_span, document.createTextNode(text));
+				});
+			}); }); }); });
+		}
+
+		function graph_interval_ms()
+		{
+			/* sharkd buckets an iograph at 1000 ms unless asked otherwise, and stock Webshark
+			   never asks (WSIOGraph.update leaves the line commented out). That default is wrong
+			   in both directions here. A capture shorter than a second collapses to a single
+			   point, and discovery is bursty enough that a whole SEDP exchange lands inside one
+			   bucket, which is exactly the shape the presets exist to show. */
+			if (g_graph_interval != 'auto')
+				return parseInt(g_graph_interval, 10);
+
+			if (!g_capture_duration || g_capture_duration <= 0)
+				return 1000;
+
+			/* Snap to the narrowest round step that still keeps the capture under a few hundred
+			   buckets. Taking the widest step at or below the target instead doubles the count
+			   at every boundary, since a 30 s capture lands on a target of 99.97 and would fall
+			   to 50 ms. The floor is sharkd's useful resolution, the ceiling keeps an hour-long
+			   capture drawable. */
+			var target = (g_capture_duration * 1000) / 300;
+			var steps = [ 10, 20, 50, 100, 200, 500, 1000, 2000, 5000, 10000 ];
+
+			for (var i = 0; i < steps.length; i++)
+			{
+				if (steps[i] >= target)
+					return steps[i];
+			}
+
+			return steps[steps.length - 1];
+		}
+
+		function set_graph_interval(value)
+		{
+			g_graph_interval = value;
+
+			if (g_webshark_iograph && g_webshark_iograph.graphs.length)
+				render_graph();
+		}
+
+		function install_graph_interval()
+		{
+			/* WSIOGraph.update() assembles its own request and offers no hook, but it posts
+			   through window.webshark.webshark_json_get, so the bucket width can be set from
+			   here instead of forking the method. Only iograph requests are touched; the
+			   capture-summary counts above are 'intervals' and carry their own. */
+			var original = window.webshark.webshark_json_get;
+
+			window.webshark.webshark_json_get = function(req_data, cb)
+			{
+				if (req_data && req_data['req'] == 'iograph' && req_data['interval'] == undefined)
+				{
+					g_graph_last_interval = graph_interval_ms();
+					req_data['interval'] = g_graph_last_interval;
+				}
+
+				return original(req_data, cb);
+			};
+		}
+
+		function install_graph_render()
+		{
+			/* Replaces WSIOGraph.renderGraph rather than wrapping it, because the entire
+			   c3.generate() call lives inside that one method and none of its config is
+			   reachable afterwards. What this adds over stock: series named from the preset
+			   that drew them instead of "Graph #N", a real time axis in seconds rather than
+			   bucket indices, an optional second Y axis, and drag-to-zoom with a brush strip. */
+			/* The function select's value is 'packets', 'bytes', 'sum:<field>' and so on.
+			   Only the part before the colon says what unit each bucket holds. */
+			var UNIT_LABELS = {
+				packets: 'Packets', bytes: 'Bytes', bits: 'Bits',
+				sum: 'Sum(field)', frames: 'Frame count', fields: 'Field count',
+				max: 'Max(field)', min: 'Min(field)', avg: 'Avg(field)', load: 'Load (%)'
+			};
+
+			/* Puts the bucket width in the label (e.g. "Packets / 100 ms") instead of just
+			   "bucket", so the width is readable without checking the X axis. */
+			function axis_label(units)
+			{
+				if (!units.length) return '';
+				var uniq = units.filter(function(v, i) { return units.indexOf(v) === i; });
+				var base = uniq.length == 1 ? uniq[0] : 'Mixed units';
+				return base + ' / ' + g_graph_last_interval + ' ms';
+			}
+
+			window.webshark.WSIOGraph.prototype.renderGraph = function()
+			{
+				var names = { }, types = { }, colors = { }, axes = { };
+				var y_units = [ ], y2_units = [ ];
+				var use_y2 = false;
+				var longest = 0;
+
+				for (var i = 0; i < this.graph_data.length; i++)
+				{
+					var style = this.graph_style[i];
+					var row = this.graphs[i];
+
+					types['graph' + i] = (style == 'dot') ? 'scatter' : (style == 'bar') ? 'bar' : 'line';
+					colors['graph' + i] = this.colors[i];
+
+					var on_y2 = row && row['axis'] && row['axis'].value == 'y2';
+					var unit_label = row ? UNIT_LABELS[row['function'].value.split(':')[0]] : undefined;
+
+					(on_y2 ? y2_units : y_units).push(unit_label || 'Value');
+
+					/* Falling back to the filter text keeps a hand-typed row identifiable too,
+					   and the unfiltered row really is every packet in the capture. Rows added by
+					   hand get that name written back into the table, which stock leaves reading
+					   "Graph #N"; the legend and the row a reader edits have to agree. */
+					if (row && row['rmwName'])
+					{
+						names['graph' + i] = row['rmwName'];
+					}
+					else
+					{
+						names['graph' + i] = (row && row['filter'].value) ? row['filter'].value : 'All packets';
+
+						var cell = this.table.rows[i] ? this.table.rows[i].cells[0] : null;
+						if (cell)
+							window.webshark.dom_set_child(cell, document.createTextNode(names['graph' + i]));
+					}
+
+					if (on_y2)
+					{
+						axes['graph' + i] = 'y2';
+						use_y2 = true;
+					}
+
+					if (this.graph_data[i].length - 1 > longest)
+						longest = this.graph_data[i].length - 1;
+				}
+
+				/* Stock labels the axis "Time (s)" while plotting bucket indices, which only
+				   agreed with itself at sharkd's 1 s default. Supply the seconds explicitly. */
+				var step = g_graph_last_interval / 1000;
+				var xcol = [ 'x' ];
+
+				for (var t = 0; t < longest; t++)
+					xcol.push(Number((t * step).toFixed(3)));
+
+				this.c3_chart = c3.generate({
+					bindto: this.elem,
+					size: { height: 320 },
+
+					zoom: { enabled: true, rescale: true },
+					subchart: { show: true },
+					grid: { y: { show: true } },
+					point: { show: false },
+					legend: { position: 'bottom' },
+
+					axis: {
+						x: {
+							label: {
+								text: 'Time (s), ' + g_graph_last_interval + ' ms buckets',
+								position: 'outer-center'
+							},
+							tick: { fit: false }
+						},
+						y: { label: { text: axis_label(y_units), position: 'outer-middle' } },
+						y2: { show: use_y2, label: { text: axis_label(y2_units), position: 'outer-middle' } }
+					},
+
+					data: {
+						x: 'x',
+						columns: [ xcol ].concat(this.graph_data),
+						names: names,
+						types: types,
+						colors: colors,
+						axes: axes
+					}
+				});
+			};
+		}
+
+		function install_time_precision()
+		{
+			/* sharkd formats times at the capture file's own resolution, nanoseconds here, and
+			   ignores gui.time_precision in the recent file (tested: no effect). Nine decimals
+			   is three more than anyone reads off a packet list, and it pushes the Info column
+			   over. Trim on the way into the list instead, which is the only place it matters;
+			   the detail pane keeps full precision. */
+			var time_cols = [ ];
+			for (var i = 0; i < g_ws_default_pref.columns.length; i++)
+			{
+				for (var title in g_ws_default_pref.columns[i])
+				{
+					var fmt = g_ws_default_pref.columns[i][title];
+					if (fmt == '%t' || fmt == '%Tt')
+						time_cols.push(i);
+				}
+			}
+
+			var original = window.webshark.WSPacketList.prototype.setPackets;
+
+			window.webshark.WSPacketList.prototype.setPackets = function(packets)
+			{
+				for (var i = 0; i < packets.length; i++)
+				{
+					/* Rows still downloading are placeholders carrying no column array. */
+					var cols = packets[i] && packets[i]['c'];
+					if (!cols)
+						continue;
+
+					for (var j = 0; j < time_cols.length; j++)
+					{
+						var v = cols[time_cols[j]];
+						if (typeof v === 'string' && /^\d+\.\d{9}$/.test(v))
+							cols[time_cols[j]] = v.slice(0, -3);
+					}
+				}
+
+				return original.call(this, packets);
+			};
+		}
+
+		/* localStorage throws rather than returning null when a browser has site data
+		   blocked, so both sides swallow it and the feature degrades to session-only. */
+		function ws_storage_get(key, fallback)
+		{
+			try
+			{
+				var raw = window.localStorage.getItem(key);
+				return (raw == null) ? fallback : JSON.parse(raw);
+			}
+			catch (e)
+			{
+				return fallback;
+			}
+		}
+
+		function ws_storage_set(key, value)
+		{
+			try
+			{
+				window.localStorage.setItem(key, JSON.stringify(value));
+			}
+			catch (e)
+			{
+				/* nothing to recover, the setting still applies for this page */
+			}
+		}
+
+		/* Hidden columns are stored as sharkd format codes ('%S'), not positions, so the
+		   set survives a change to the column list above. A code that no longer exists is
+		   simply never matched. */
+		var g_column_hidden = ws_storage_get('webshark.columns.hidden', [ ]);
+
+		/* Each entry in g_ws_pref.columns is a one-key object, { "SPort": "%S" }. */
+		function column_entry(i)
+		{
+			var entry = { title: "", fmt: "" };
+			for (entry.title in g_ws_pref.columns[i]) { entry.fmt = g_ws_pref.columns[i][entry.title]; }
+			return entry;
+		}
+
+		function apply_column_visibility()
+		{
+			/* A stylesheet rather than per-cell DOM edits, because Clusterize rebuilds rows
+			   during scrolling and anything written onto a <td> is lost with them. A rule
+			   also reaches packet_list_header_fake, which sizes the body table under
+			   table-layout: fixed.
+
+			   The #ws_packet_list_view scope is required. class="packet_list" is also on the
+			   Advanced Graph table, which sits outside this div and must not lose cells. */
+			var rules = [ ];
+
+			for (var i = 0; i < g_ws_pref.columns.length; i++)
+			{
+				if (g_column_hidden.indexOf(column_entry(i).fmt) == -1)
+					continue;
+
+				var nth = i + 1;
+				rules.push('#ws_packet_list_view th:nth-child(' + nth + '),' +
+				           '#ws_packet_list_view td:nth-child(' + nth + ') { display: none; }');
+			}
+
+			document.getElementById('column_visibility').textContent = rules.join('\n');
+		}
+
+		function toggle_column(fmt, input)
+		{
+			var at = g_column_hidden.indexOf(fmt);
+
+			if (at != -1)
+				g_column_hidden.splice(at, 1);
+			else if (g_column_hidden.length + 1 >= g_ws_pref.columns.length)
+			{
+				/* An empty packet list reads as a broken viewer. */
+				input.checked = true;
+				return;
+			}
+			else
+				g_column_hidden.push(fmt);
+
+			ws_storage_set('webshark.columns.hidden', g_column_hidden);
+			apply_column_visibility();
+		}
+
+		function build_column_menu()
+		{
+			var menu = document.getElementById('column_menu');
+
+			menu.innerHTML = '';
+
+			for (var i = 0; i < g_ws_pref.columns.length; i++)
+			{
+				var entry = column_entry(i);
+				var label = document.createElement('label');
+				var input = document.createElement('input');
+
+				input.type = 'checkbox';
+				input.checked = (g_column_hidden.indexOf(entry.fmt) == -1);
+				input.addEventListener('change', toggle_column.bind(null, entry.fmt, input));
+
+				label.appendChild(input);
+				label.appendChild(document.createTextNode(entry.title));
+				menu.appendChild(label);
+			}
+		}
+
+		/* Wireshark ships both of these off, and each answers a question the packet list
+		   otherwise cannot.
+
+		   setconf applies to the sharkd session that owns a capture. Without capture= it still
+		   answers err:0 and changes nothing, so a round trip through dumpconf is the only way
+		   to tell it worked. With capture= the change re-dissects immediately: measured,
+		   udp.check_checksum added five nodes to an already-open frame, and reassembly
+		   re-labelled 2706 frames of the Cyclone capture, neither needing a reload. */
+		var g_dissect_prefs =
+		{
+			userdata:
+			{
+				label: 'User data',
+				proto: 'rtps',
+				pref: 'rtps.enable_user_data_dissection',
+				/* Wireshark can only decode a CDR payload against the type's structure, which
+				   it has to learn from a TypeObject carried in SEDP. Measured 2026-08-25: no
+				   capture in this repo has one. Twelve captures across Cyclone, Fast DDS and
+				   Zenoh return zero rtps.type_object_v2, and a 400-frame sweep is byte-identical
+				   with the preference on and off. The type NAME does travel
+				   (rtps.param.typeName), which is why the packet list can still say what a
+				   topic carries while the bytes stay opaque. A matching wire therefore says
+				   nothing about whether this button can do anything, so it dims on the probe
+				   below instead. */
+				probe: 'rtps.type_object_v2',
+				absent: 'This capture carries no TypeObject, so Wireshark has no type definition '
+				      + 'to decode the payload against and this setting will change nothing. '
+				      + 'ROS 2 stacks do not send one by default. Still clickable.',
+				title: 'Dissect the contents of user DATA submessages instead of stopping at the header. Wireshark ships this off, and it only has an effect when the capture carries a TypeObject to decode against.'
+			},
+			reassembly:
+			{
+				label: 'Reassembly',
+				proto: 'rtps',
+				pref: 'rtps.enable_rtps_reassembly',
+				title: 'Reassemble DATA_FRAG into whole samples, so a fragmented image or point cloud that arrived complete can be told from one missing a fragment. Wireshark ships this off.'
+			}
+		};
+
+		var g_graphs_restored = false;
+		var g_dissect_on = ws_storage_get('webshark.dissect.on', [ ]);
+		var g_zenoh_port = ws_storage_get('webshark.zenoh.port', 0);
+
+		function redraw_frames()
+		{
+			/* Re-issuing the current filter refetches the list from the newly-configured
+			   session. req=load would work too but rereads the file for no reason. */
+			if (g_webshark && g_webshark_file)
+				g_webshark.setFilter(g_webshark.filter);
+		}
+
+		function send_conf(name, value, cb)
+		{
+			window.webshark.webshark_json_get(
+				{ req: 'setconf', capture: g_webshark_file, name: name, value: value }, cb);
+		}
+
+		function apply_dissect_prefs(cb)
+		{
+			var pending = [ ];
+
+			for (var name in g_dissect_prefs)
+			{
+				if (g_dissect_on.indexOf(name) != -1)
+					pending.push([ g_dissect_prefs[name].pref, 'TRUE' ]);
+			}
+
+			if (g_zenoh_port)
+			{
+				pending.push([ 'zenoh.tcp.port', String(g_zenoh_port) ]);
+				pending.push([ 'zenoh.udp.port', String(g_zenoh_port) ]);
+			}
+
+			if (!pending.length)
+				return;
+
+			/* Serial rather than parallel: sharkd reads one request at a time per session,
+			   and the redraw has to wait for the last one to land. */
+			var next = function(i)
+			{
+				if (i == pending.length)
+				{
+					if (cb) cb();
+					return;
+				}
+				send_conf(pending[i][0], pending[i][1], next.bind(null, i + 1));
+			};
+
+			next(0);
+		}
+
+		function toggle_dissect(name)
+		{
+			var at = g_dissect_on.indexOf(name);
+			var on = (at == -1);
+
+			if (on)
+				g_dissect_on.push(name);
+			else
+				g_dissect_on.splice(at, 1);
+
+			ws_storage_set('webshark.dissect.on', g_dissect_on);
+			render_dissect_state();
+
+			send_conf(g_dissect_prefs[name].pref, on ? 'TRUE' : 'FALSE', redraw_frames);
+		}
+
+		function set_zenoh_port(value)
+		{
+			/* Blank or 7447 means "leave the dissector alone", so nothing is stored and
+			   nothing is sent on the next capture. */
+			var port = parseInt(value, 10);
+
+			g_zenoh_port = (port > 0 && port < 65536 && port != 7447) ? port : 0;
+			ws_storage_set('webshark.zenoh.port', g_zenoh_port);
+
+			var sending = g_zenoh_port ? g_zenoh_port : 7447;
+			send_conf('zenoh.tcp.port', String(sending), function()
+			{
+				send_conf('zenoh.udp.port', String(sending), redraw_frames);
+			});
+		}
+
+		/* Pressed state only. The titles and the dimming belong to
+		   apply_preset_relevance(), which is the one place that knows the detected wire. */
+		function render_dissect_state()
+		{
+			for (var name in g_dissect_prefs)
+			{
+				var btn = document.getElementById('dissect_' + name);
+				if (!btn) continue;
+
+				if (g_dissect_on.indexOf(name) != -1)
+					btn.classList.add('selected');
+				else
+					btn.classList.remove('selected');
+			}
+
+			var port_input = document.getElementById('dissect_zenoh_port');
+			if (port_input)
+				port_input.value = g_zenoh_port ? g_zenoh_port : '';
+		}
+
+		function install_graph_axis_column()
+		{
+			/* addGraph builds its row's cells inline with no extension point, so the axis
+			   select is appended once it returns. It exists because presets overlay: a
+			   retransmit line peaking near 600 is a flat line beside SPDP at 12000 when both
+			   share a scale, which is the same problem drop_unfiltered_graph_rows() works
+			   around for the unfiltered row. */
+			var original = window.webshark.WSIOGraph.prototype.addGraph;
+
+			window.webshark.WSIOGraph.prototype.addGraph = function()
+			{
+				original.call(this);
+
+				var graph = this.graphs[this.graphs.length - 1];
+				var row = this.table.rows[this.table.rows.length - 1];
+				var td = document.createElement('td');
+				var select = document.createElement('select');
+				var options = [ [ 'y', 'Y' ], [ 'y2', 'Y2' ] ];
+
+				for (var i = 0; i < options.length; i++)
+				{
+					var option = document.createElement('option');
+					option.value = options[i][0];
+					option.appendChild(document.createTextNode(options[i][1]));
+					select.appendChild(option);
+				}
+
+				select.title = 'Which Y axis to draw this line against. Move a small line to Y2 '
+				             + 'to read its shape beside a much larger one.';
+				select.onchange = render_graph;
+
+				td.appendChild(select);
+				row.appendChild(td);
+
+				graph['axis'] = select;
+			};
+		}
+
+		function add_graph()
+		{
+			g_webshark_iograph.addGraph();
+		}
+
+		function render_graph()
+		{
+			g_webshark_iograph.update();
+			save_graphs();
+		}
+
+		/* A four-line comparison is several minutes of typing and stock lost it on every
+		   refresh. Saved on Render rather than on every keystroke, so a half-typed filter is
+		   never what comes back. */
+		function save_graphs()
+		{
+			var graphs = g_webshark_iograph.graphs;
+			var rows = [ ];
+			var worth_keeping = false;
+
+			for (var i = 0; i < graphs.length; i++)
+			{
+				rows.push(
+				{
+					name:   graphs[i]['rmwName'] || '',
+					filter: graphs[i]['filter'].value,
+					style:  graphs[i]['style'].value,
+					func:   graphs[i]['function'].value,
+					field:  graphs[i]['field'].value,
+					axis:   graphs[i]['axis'] ? graphs[i]['axis'].value : 'y'
+				});
+
+				if (graphs[i]['filter'].value != '')
+					worth_keeping = true;
+			}
+
+			/* Clear Graphs ends in a render, so this is also what makes clearing stick. */
+			ws_storage_set('webshark.graphs', worth_keeping ? rows : [ ]);
+		}
+
+		function restore_graphs()
+		{
+			var rows = ws_storage_get('webshark.graphs', [ ]);
+
+			if (!rows.length)
+				return false;
+
+			document.getElementById('capture_graph_table').innerHTML = '';
+			g_webshark_iograph.graphs = [ ];
+
+			for (var i = 0; i < rows.length; i++)
+			{
+				g_webshark_iograph.addGraph();
+
+				var graph = g_webshark_iograph.graphs[i];
+
+				graph['filter'].value = rows[i].filter;
+				graph['style'].value = rows[i].style;
+				graph['function'].value = rows[i].func;
+				graph['field'].value = rows[i].field;
+
+				if (graph['axis'])
+					graph['axis'].value = rows[i].axis;
+
+				if (rows[i].name)
+					name_graph_row(i, rows[i].name);
+			}
+
+			return true;
+		}
+
+		function clear_graphs()
+		{
+			/* Stock WSIOGraph (webshark-app.js) has no removeGraph or reset of its own.
+			   The only way to drop accumulated rows was a full page reload, which also
+			   loses the open capture. Rebuild its empty state in place instead. Needed
+			   because apply_graph_preset() below overlays one row per preset, so a few
+			   clicks (or Add Graph) pile up rows with no other way to undo. */
+			document.getElementById('capture_graph_table').innerHTML = '';
+			g_webshark_iograph.graphs = [];
+			g_webshark_iograph.addGraph();
+			render_graph();
+		}
+
+		function drop_unfiltered_graph_rows()
+		{
+			/* Presets overlay each other so two lines can be compared, but the blank row
+			   addGraph() leaves behind plots every packet in the capture and shares a Y axis
+			   with them. Confirmed live: a retransmit line peaking near 600 next to that
+			   unfiltered baseline at 12000 renders flat along the bottom, real data at
+			   invisible scale. Preset lines are comparably scaled to one another, so only the
+			   baseline has to go. */
+			var table = document.getElementById('capture_graph_table');
+			var graphs = g_webshark_iograph.graphs;
+
+			for (var i = graphs.length - 1; i >= 0; i--)
+			{
+				if (graphs[i]['filter'].value != '')
+					continue;
+				if (table.rows[i])
+					table.deleteRow(i);
+				graphs.splice(i, 1);
+			}
+		}
+
+		function resync_graph_colors()
+		{
+			/* addGraph() paints the swatch from the row's index when it was added, but
+			   renderGraph() colors the line from the index at render time. Dropping a row
+			   above pushes those apart, and then the table claims one color while the chart
+			   draws another. That swatch is the only thing tying a line back to the row that
+			   produced it whenever the row carries no preset name of its own. */
+			var table = document.getElementById('capture_graph_table');
+
+			for (var i = 0; i < g_webshark_iograph.graphs.length; i++)
+			{
+				var cell = table.rows[i] ? table.rows[i].cells[2] : null;
+				if (cell && cell.firstChild)
+					cell.firstChild.style['background-color'] = g_webshark_iograph.colors[i];
+			}
+		}
+
+		function name_graph_row(index, name)
+		{
+			/* The name shows in two places. renderGraph below reads it off the graph object for
+			   the chart legend, and the table row is what a reader edits. addGraph writes a
+			   static "Graph #N" text node into that first cell and keeps no handle to it, so the
+			   row half has to go through the DOM. */
+			var table = document.getElementById('capture_graph_table');
+			var graph = g_webshark_iograph.graphs[index];
+			var cell = table.rows[index] ? table.rows[index].cells[0] : null;
+
+			if (graph)
+				graph['rmwName'] = name;
+			if (cell)
+				window.webshark.dom_set_child(cell, document.createTextNode(name));
+		}
+
+		function apply_graph_preset(func, presetFilter, presetName)
+		{
+			/* Idempotent open, not show_hide_graph's toggle: a preset should always land
+			   on the graph, even if it's already open from a previous click. */
+			if (document.getElementById('report_graph').style['display'] != 'block')
+				show_hide_graph('report_graph', 'capture_interval_adv');
+
+			drop_unfiltered_graph_rows();
+
+			/* Clicking the same preset twice should not stack a second identical line on top
+			   of the first, which is what overlaying costs if nothing checks. Clear Graphs is
+			   still the reset. */
+			var graphs = g_webshark_iograph.graphs;
+			var existing = -1;
+			for (var i = 0; i < graphs.length; i++)
+			{
+				if (graphs[i]['filter'].value == presetFilter && graphs[i]['function'].value == func)
+					existing = i;
+			}
+
+			if (existing < 0)
+			{
+				add_graph();
+				var last = graphs[graphs.length - 1];
+				last['function'].value = func;
+
+				/* A select rejects a value it has no option for and reports '' instead, which
+				   would send an empty function to the iograph and draw nothing with no sign of
+				   why. A ?graph= deep-link carrying a typo is the realistic way in. */
+				if (last['function'].value == '')
+					last['function'].value = 'packets';
+
+				if (presetFilter)
+					last['filter'].value = presetFilter;
+				if (presetName)
+					name_graph_row(graphs.length - 1, presetName);
+			}
+
+			resync_graph_colors();
+			render_graph();
+		}
+
+		function bytes_display_base(new_base)
+		{
+			g_webshark_hexdump.base = new_base;
+			g_webshark_hexdump.render_hexdump();
+
+			if (new_base != 2)
+				document.getElementById('packet_display_base_2').classList.remove('selected');
+			if (new_base != 16)
+				document.getElementById('packet_display_base_16').classList.remove('selected');
+			document.getElementById('packet_display_base_' + new_base).classList.add('selected');
+		}
+
+		function show_hide_menu(id, id2)
+		{
+			var list = [ 'report_menu', 'report_menu_conv', 'report_menu_srt', 'report_menu_stat', 'report_menu_stat2', 'report_menu_eo', 'column_menu' ];
+			var elem;
+
+			for (var i = 0; i < list.length; i++)
+			{
+				if (list[i] != id && list[i] != id2)
+				{
+					elem = document.getElementById(list[i]);
+					elem.style['display'] = 'none';
+				}
+			}
+
+			elem = document.getElementById(id);
+			elem.style['display'] = (elem.style['display'] != 'block') ? 'block' : "none";
+			if (id2 != undefined)
+			{
+				elem = document.getElementById(id2);
+				elem.style['display'] = (elem.style['display'] != 'block') ? 'block' : "none";
+			}
+		}
+
+		function load()
+		{
+			g_webshark_files = new window.webshark.WSCaptureFilesTable({
+				scrollId: 'capture_files_view',
+				contentId: 'capture_files',
+				fileDetailsId: 'capture_files_view_details'
+			});
+
+			g_webshark_interval = new window.webshark.WSInterval({
+				contentId: 'capture_interval',
+				descrId: 'capture_interval_descr',
+				mode: "bps",
+				width: 620 /* number of probes - currently size of svg */
+			});
+
+			/* Both patch WSIOGraph.prototype, so they have to run before the first addGraph()
+			   below or the initial row gets no axis select. */
+			install_graph_interval();
+			install_graph_render();
+			install_graph_axis_column();
+			install_time_precision();
+
+			g_webshark_iograph = new window.webshark.WSIOGraph({
+				contentId: 'capture_graph',
+				tableId: 'capture_graph_table'
+			});
+
+			g_graphs_restored = restore_graphs();
+			if (!g_graphs_restored)
+				g_webshark_iograph.addGraph();
+
+			g_webshark_packet_list = new window.webshark.WSPacketList({
+				headerId: 'packet_list_header',
+				headerFakeId: 'packet_list_header_fake',
+				scrollId: 'ws_packet_list_view_scroll',
+				contentId: 'packet_list_frames'
+			});
+
+			g_webshark_prototree_html = new window.webshark.ProtocolTree({
+				contentId: 'ws_packet_detail_view'
+			});
+
+			/* Upstream's filter glyph re-opens the whole capture in a 500x1000 popup, so a
+			   drill-down costs a reload per click. Apply it here instead and leave
+			   modifier-click to the anchor's own target="_blank". popup_on_click_a is bound
+			   on the anchor, so only capture phase plus stopPropagation beats it. That also
+			   stops the row's select handler, so the glyph no longer selects the field. */
+			document.getElementById('ws_packet_detail_view').addEventListener('click', function(ev)
+			{
+				if (ev.ctrlKey || ev.metaKey || ev.shiftKey || ev.altKey)
+					return;
+
+				var a = ev.target.closest('a[href]');
+				if (!a)
+					return;
+
+				/* The tree's only other anchor is the framenum link, which carries frame=. */
+				var filter = new URL(a.href).searchParams.get('filter');
+				if (!filter)
+					return;
+
+				ev.preventDefault();
+				ev.stopPropagation();
+				preset_filter(filter);
+			}, true);
+
+			g_webshark_hexdump = new window.webshark.WSHexdump({
+				base: 16,
+				tabsId: 'ws_packet_pane',
+				contentId: 'ws_bytes_dump'
+			});
+
+			load_preferences();
+
+			/* Tooltips come from g_rmw_presets, so they have to be written into the buttons
+			   once at load. compute_capture_summary() refreshes them per capture, but it does
+			   not run on the file-list page. */
+			apply_preset_relevance(null);
+			install_traffic_tooltips();
+			render_dissect_state();
+
+			/* Upstream's update() gives up on the filtered count in a comment ("There is no
+			   easy way to get information about number of frames after filtering"), but the
+			   intervals response it already waits on carries it, and it lands in
+			   cached_columns.length immediately before fetchColumns(0, true). So read it there
+			   rather than issuing a second request. load_first is false on the scroll path,
+			   which carries no new total. */
+			var ws_fetch_columns = window.webshark.Webshark.prototype.fetchColumns;
+			window.webshark.Webshark.prototype.fetchColumns = function(skip, load_first)
+			{
+				if (load_first)
+					render_displayed_count(this.filter, this.cached_columns.length);
+				return ws_fetch_columns.apply(this, arguments);
+			};
+
+			g_webshark = new window.webshark.Webshark();
+
+			window.webshark.webshark_json_get(
+				{
+					req: 'info'
+				},
+				function(data)
+				{
+					g_ws_taps  = data['taps'];
+					g_ws_stats = data['stats'];
+					g_ws_nstat = data['nstat'];
+					g_ws_eo    = data['eo'];
+					g_ws_follow= data['follow'];
+					g_ws_seqa  = data['seqa'];
+					g_ws_srt   = data['srt'];
+					g_ws_rtd   = data['rtd'];
+					g_ws_convs = data['convs'];
+					g_ws_ftypes = data['ftypes'];
+
+					var columns_default = [ "%m", "%t", "%s", "%d", "%p", "%L", "%i" ];
+					var columns_title   = [ ];
+					var columns_width   = [ ];
+					var columns_pref    = [ ];
+
+					document.title = document.title.replace("${WEBSHARK_VER}", data['version']);
+
+					setup_user_toolbar(data['user']);
+
+					for (var col = 0; col < g_ws_pref.columns.length; col++)
+					{
+						var col_title = "";
+						var col_format = "";
+						var col_format_idx = -1;
+
+						for (col_title in g_ws_pref.columns[col]) { col_format = g_ws_pref.columns[col][col_title]; }
+						columns_title.push(col_title);
+						columns_width.push(g_ws_pref.columns_width[col_format]);
+
+						if (col >= columns_default.length || columns_default[col] != col_format)
+						{
+							g_webshark.setColumns(columns_pref);
+						}
+
+						/* map from column format to integer */
+						var ws_d_columns = data['columns'];
+						for (var col_map = 0; col_map < ws_d_columns.length; col_map++)
+						{
+							if (ws_d_columns[col_map].format == col_format)
+							{
+								col_format_idx = col_map;
+							}
+						}
+
+						if (col_format_idx != -1)
+							columns_pref.push(col_format_idx);
+						else
+							columns_pref.push(col_format);
+					}
+
+					g_webshark_packet_list.setColumns(columns_title, columns_width);
+
+					/* Both read g_ws_pref.columns, so they follow the call that renders it. */
+					build_column_menu();
+					apply_column_visibility();
+
+					run();
+				});
+		}
+
+	</script>
+</head>
+
+<body onload="load()"><div id="ws_div" style="display: none;">
+	<div id="user_toolbar">
+		<a href="/webshark"><img src="favicon.ico" width="20" style="vertical-align: middle;margin-right: 5px;">&nbsp; Webshark</a>
+
+		<!-- Served from this image rather than linked to GitHub: a conference room's wifi is not
+		     dependable, and an external link would describe whatever is on main instead of the
+		     build actually running. Filled white because every other link on this bar is already
+		     white and bold, and outside ul.menul because colvis.test.mjs asserts that list
+		     has six entries. -->
+		<a id="toolbar_guide" href="guide.html" target="_blank" title="Field guide: capturing from a robot and reading the result, for readers new to Wireshark" style="display: inline-block; margin-left: 16px; padding: 1px 11px; font-size: 13px; background: #ffffff; color: #2d5a7a; border-radius: 3px; text-decoration: none; vertical-align: middle;">Guide</a>
+
+		<div style="float: right; margin-right: 5px;vertical-align: middle;">
+			<a id="toolbar_capture_refresh" onclick="refresh_capture()" title="Reload this capture to see newly-written packets" style="display: none; cursor: pointer; margin-right: 6px; text-decoration: underline;">&#10227; Refresh</a>
+			<span id="toolbar_capture_refresh_status" style="margin-right: 10px; font-size: 13px; color: #666;"></span>
+			<span id="toolbar_capture_description" style="margin-right: 10px; font-size: 16px; font-weight: bold;"></span>
+			<span id="toolbar_capture_summary" style="margin-right: 10px; font-size: 13px; color: #444;"></span>
+			<span id="user_anon" style="display: none;">
+				Guest
+				<a href="/login">Login</a>
+			</span>
+			<span id="user_registered" style="display: none;">
+				<span id="user_login"></span>
+				<a href="/logout/?next=/webshark">Logout</a>
+			</span>
+		</div>
+	</div>
+
+	<div id="files_view" style="display: none;">
+		<!-- The one screen where nothing is open yet, so the toolbar button has not helped
+		     anyone reading it. -->
+		<p id="files_guide_hint" style="font-size: 14px; margin: 6px 0 10px 0;">First time here?
+			Start with the <a href="guide.html" target="_blank" style="font-weight: bold;">field
+			guide</a>, which covers taking a capture and reading what comes back.</p>
+		<input id="files_filter" placeholder="Apply a files filter" type='text' onchange='filter_files(this.value);' style='width: 1000px;' />
+		<p style="font-size: 12px;">Filter examples:
+			<span class="example">filename</span>
+			<span class="example">duration&lt;0.5 frames&gt;42</span>
+			<span class="example">duration&gt;60 frames&lt;42</span>
+			<span class="example">proto:tcp</span>
+			<span class="example">proto:wlan proto:eap</span>
+		</p>
+		<div id="capture_files_view" style="max-height: 800px; overflow: auto; width: 70%; float: left;">
+			<table style="width: 100%;">
+				<thead id="capture_files_header">
+					<tr>
+						<th>Filename</th>
+						<th>File Size</th>
+						<th>Description</th>
+					</tr>
+				</thead>
+				<tbody id="capture_files">
+				</tbody>
+			</table>
+		</div>
+		<div id="capture_files_view_details" style="max-height:700px; overflow: auto; width: 20%; float: left;">
+			Click file to get details
+		</div>
+	</div>
+
+	<div id="toolbar_capture">
+		<div style="float: left;">
+			<a id="toolbar_capture_files"></a>
+			<a id="toolbar_capture_settings"></a>
+			<a id="toolbar_capture_down"></a>
+			<input id="display_filter" placeholder="Apply a display filter" type='text' onchange='set_filter(this.value);' style='width: 550px;' />
+			<span id="display_filter_count" style="margin-left: 8px; font-size: 90%; color: #666;"></span>
+
+			<p />
+
+			<ul class="menul">
+			<li>
+				<a onclick="show_hide_menu('report_menu_conv');">Endpoints
+					<div class="submenu" id="report_menu_conv"></div>
+				</a>
+				<a onclick="show_hide_menu('report_menu_srt');">Response Time
+					<div class="submenu" id="report_menu_srt"></div>
+				</a>
+				<a onclick="show_hide_menu('report_menu_stat', 'report_menu_stat2');">Statistics
+					<div class="submenu" id="report_menu_stat" style="margin-left: -200px;"></div>
+					<div class="submenu" id="report_menu_stat2" style="margin-left: 200px;"></div>
+				</a>
+				<a onclick="show_hide_menu('report_menu_eo');">Export Objects
+					<div class="submenu" id="report_menu_eo"></div>
+				</a>
+				<a onclick="show_hide_menu('report_menu');">Misc
+					<div class="submenu" id="report_menu"></div>
+				</a>
+				<a onclick="show_hide_menu('column_menu');">Columns
+					<div class="submenu rmw-column-menu" id="column_menu"></div>
+				</a>
+			</li>
+		</ul>
+
+		<div style="clear: both; margin-top: 4px;">
+			<span class="rmw-preset-group">RMW presets:</span>
+			<label class="rmw-preset-mode"><input type="radio" name="preset_mode" id="preset_mode_list" checked onchange="set_preset_mode('list')"> Packet list</label>
+			<label class="rmw-preset-mode"><input type="radio" name="preset_mode" id="preset_mode_rate" onchange="set_preset_mode('rate')"> Rate graph</label>
+		</div>
+		<div style="clear: both; margin-top: 4px;">
+			<span class="rmw-preset-group">Discovery</span>
+			<button id="preset_spdp" class="wsbutton rmw-added-btn" onclick="run_preset('spdp')">SPDP</button>
+			<button id="preset_sedp" class="wsbutton rmw-added-btn" onclick="run_preset('sedp')">SEDP</button>
+			<button id="preset_zenoh_declare" class="wsbutton rmw-added-btn" onclick="run_preset('zenoh_declare')">Zenoh Declare</button>
+		</div>
+		<div style="clear: both; margin-top: 4px;">
+			<span class="rmw-preset-group">Repair</span>
+			<button id="preset_fragments" class="wsbutton rmw-added-btn" onclick="run_preset('fragments')">Fragments</button>
+			<button id="preset_retransmit" class="wsbutton rmw-added-btn" onclick="run_preset('retransmit')">Retransmits</button>
+		</div>
+		<div style="clear: both; margin-top: 4px;">
+			<span class="rmw-preset-group">Dissection</span>
+			<button id="dissect_userdata" class="wsbutton rmw-added-btn" onclick="toggle_dissect('userdata')">User data</button>
+			<button id="dissect_reassembly" class="wsbutton rmw-added-btn" onclick="toggle_dissect('reassembly')">Reassembly</button>
+			<label id="dissect_zenoh_label" class="rmw-dissect-port" title="The port the Zenoh dissector decodes, 7447 by default. A router on any other port is dissected as plain TCP and disappears from the packet list.">Zenoh port
+				<input id="dissect_zenoh_port" type="number" min="1" max="65535" placeholder="7447" onchange="set_zenoh_port(this.value)" />
+			</label>
+		</div>
+		<div style="clear: both; margin-top: 4px;">
+			<span class="rmw-preset-group">Traffic</span>
+			<button id="traffic_talkers" class="wsbutton rmw-added-btn" onclick="run_traffic_tap('talkers')">Talkers</button>
+			<button id="traffic_conversations" class="wsbutton rmw-added-btn" onclick="run_traffic_tap('conversations')">Conversations</button>
+			<button id="traffic_warnings" class="wsbutton rmw-added-btn" onclick="run_traffic_tap('warnings')">Warnings</button>
+			<button id="traffic_protocols" class="wsbutton rmw-added-btn" onclick="run_traffic_tap('protocols')">Protocols</button>
+		</div>
+		</div>
+		<div style="float: right; border: 1px solid grey; display: none;">
+			<div id="capture_interval" style="margin-top: 2px;">
+				<svg width="620" height="100"></svg>
+			</div>
+			<div style="float: left;">
+				<span style="font-size: 12px;" id="capture_interval_descr">
+				</span>
+			</div>
+			<div style="float: right;">
+				<button id="capture_interval_bps" class="wsbutton selected" onclick="render_interval('bps')">Bytes</button>
+				<button id="capture_interval_fps" class="wsbutton" onclick="render_interval('fps')">Frames</button>
+				<button id="capture_interval_adv" class="wsbutton" style="margin-left: 15px;" onclick="show_hide_graph('report_graph', 'capture_interval_adv')">Advanced Graph</button>
+			</div>
+		</div>
+		<div style="clear: both;"></div>
+
+		<div id="report_graph" style="border: 2px solid grey; display: none;">
+			<h3 style="text-align: center;">Advanced graph</h3>
+			<div id="capture_graph">
+				<svg width="620" height="300"></svg>
+			</div>
+			<div>
+				<button class="wsbutton" onclick="add_graph()">Add Graph</button>
+				<button class="wsbutton" style="width: 200px; margin-left: 10px; background-color: lightblue;" onclick="render_graph()">Render</button>
+				<button class="wsbutton rmw-added-btn" style="margin-left: 10px;" onclick="clear_graphs()">Clear Graphs</button>
+				<label class="rmw-graph-bucket" title="How much time each point on the graph covers. Narrow buckets show the shape of a discovery burst; wide ones keep a long capture readable. Auto picks from the capture's own length.">Bucket
+					<select id="graph_bucket" onchange="set_graph_interval(this.value)">
+						<option value="auto" selected>Auto</option>
+						<option value="10">10 ms</option>
+						<option value="100">100 ms</option>
+						<option value="1000">1 s</option>
+						<option value="10000">10 s</option>
+					</select>
+				</label>
+			</div>
+			<table class="packet_list" style="width: 100%;">
+				<thead>
+					<tr>
+						<th width="15%">Name</th>
+						<th width="28%">Display filter</th>
+						<th width="5%">Color</th>
+						<th width="9%">Style</th>
+						<th width="11%">Y Value</th>
+						<th width="25%">Y Field</th>
+						<th width="7%">Axis</th>
+					</tr>
+				</thead>
+				<tbody id="capture_graph_table">
+				</tbody>
+			</table>
+		</div>
+	</div>
+
+	<div id="toolbar_tap" style="display: none;">
+		<div id="ws_tap_graph" style="width: 2000px; overflow-x: auto;"></div>
+		<div id="ws_tap_extra" style="display: none; height: 700px;"></div>
+		<div id="ws_tap_table" style="max-height: 550px; overflow-y: auto; border: 2px solid grey;"></div>
+		<div id="ws_tap_details" style="display: none; max-height: 500px; overflow-y: auto;"></div>
+	</div>
+
+	<div id="ws_packet_list_view" style='border: 2px solid grey;'>
+		<div id="ws_packet_list_view_scrollbar_fixer" style="margin-right: 13px;">
+			<table class="packet_list" style="width: 100%; table-layout: fixed;">
+				<thead id="packet_list_header">
+					<!-- <tr><th>No.</th></tr> -->
+				</thead>
+			</table>
+		</div>
+		<div id="ws_packet_list_view_scroll" style="height: 280px; overflow-y: auto; overflow-x: hidden;">
+			<table class="packet_list" style="width: 100%; table-layout: fixed;">
+				<thead id="packet_list_header_fake"></thead>
+				<tbody id="packet_list_frames">
+					<!--- <tr><td>1</td><td>2h</td></tr> -->
+				</tbody>
+			</table>
+		</div>
+	</div>
+
+	<div id="toolbar_frame" style="display: none;">
+		<a id="toolbar_frame_timeref"></a>
+		<a id="toolbar_frame_comment"></a>
+		<input id="field_filter" placeholder="Apply a field filter" type='text' onchange='set_field_filter(this.value);' style='width: 350px;' />
+	</div>
+
+	<div id="ws_packet_detail_view" style='overflow: auto; width: 100%; height: 350px; border: 2px solid grey; float: left;'>
+	Select frame
+	</div>
+
+	<div id="ws_packet_bytes_view" style='overflow: auto; width: 100%; height: 350px; border: 2px solid grey; float: right;'>
+		<div id="ws_packet_pane" style="float: left;"></div>
+		<div style="float: right;">
+			<button id="packet_display_base_16" class="wsbutton selected" onclick="bytes_display_base(16)">Hex</button>
+			<button id="packet_display_base_2"  class="wsbutton" onclick="bytes_display_base(2)">Bits</button>
+		</div>
+		<div style="clear: both;"></div>
+		<pre id='ws_bytes_dump'>Select frame</pre>
+	</div>
+
+</div></body>
+</html>

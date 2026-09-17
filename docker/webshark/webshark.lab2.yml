@@ -1,0 +1,15 @@
+name: roscon2026-jazzy-rmw
+# Workshop overlay. webshark.yml on its own is the portable path: a directory of pcaps you
+# recorded somewhere else, read on whatever machine you are sitting at. This repoints it at
+# the lab2 fleet's own captures and adds the scripts the workshop's plotting path needs.
+#
+# Layered by `scripts/workshop webshark up`, which runs it as its own compose invocation:
+#   docker compose -f docker/webshark/webshark.yml -f docker/webshark/webshark.lab2.yml up -d
+#
+# Relative paths resolve against the FIRST -f file's directory (docker/webshark/), which is
+# why ../../ reaches the repo root from here. Compose replaces a bind mount by its target,
+# so the /captures line below wins over webshark.yml's ./captures rather than stacking.
+services:
+  webshark:
+    volumes:
+      - ../../lab2-on-the-wire/captures:/captures

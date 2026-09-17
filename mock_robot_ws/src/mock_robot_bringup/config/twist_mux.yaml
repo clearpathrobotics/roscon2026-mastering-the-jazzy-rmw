@@ -1,0 +1,15 @@
+# twist_mux params — matches the twist_mux node under any robot namespace.
+# Multiplexes several cmd_vel sources into a single output. The joystick has
+# its own dedicated cmd_vel and takes precedence over the top-level cmd_vel.
+/**/twist_mux:
+  ros__parameters:
+    use_stamped: true
+    topics:
+      joy:
+        topic: joy_teleop/cmd_vel
+        timeout: 0.5
+        priority: 10
+      external:
+        topic: cmd_vel
+        timeout: 0.5
+        priority: 1

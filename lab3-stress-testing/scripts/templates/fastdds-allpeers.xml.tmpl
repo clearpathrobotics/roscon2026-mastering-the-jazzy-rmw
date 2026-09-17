@@ -1,0 +1,19 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!-- Routed shared-medium topology: every robot and the console is on its own
+     subnet, so SPDP multicast (TTL=1) reaches no one. Fast DDS keeps SIMPLE
+     discovery but seeds unicast initial-peers for EVERY endpoint below; those
+     packets are on different subnets, so they route through the wifi-ap.
+     Self-listing is a harmless no-op. -->
+<profiles xmlns="http://www.eprosima.com/XMLSchemas/fastRTPS_Profiles">
+
+  <participant profile_name="default_participant" is_default_profile="true">
+    <rtps>
+      <builtin>
+        <initialPeersList>
+@@PEERS@@
+        </initialPeersList>
+      </builtin>
+    </rtps>
+  </participant>
+
+</profiles>

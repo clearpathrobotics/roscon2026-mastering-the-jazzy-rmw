@@ -1,0 +1,101 @@
+# sensor_qos.yaml - QoS overrides for the mock robot's scan publisher (Lab 3).
+#
+# The mock robot publishes /<robot>/scan with rclpy's default publisher QoS, which is
+# RELIABLE. That is the wrong default for high-rate sensor data: on a lossy shared
+# medium a reliable writer keeps repairing losses for its readers instead of letting
+# stale samples go, which shows up as rising message age rather than dropped frames.
+#
+# This file changes that WITHOUT editing any node source. The publishers opt in via
+# QoSOverridingOptions, so these parameters are read at node startup.
+#
+# Edit a value, then recreate the robots to apply it (QoS binds at publisher creation):
+#     scripts/workshop -t routed up 3
+#
+# Verify what actually took effect:
+#     docker exec observer bash -lc 'source /opt/ros/jazzy/setup.bash && \
+#         ros2 topic info -v /robot_1/scan'
+#
+# Only `scan` is listed here: the params file is passed to the laserscan node, so camera
+# entries would silently do nothing. Camera reliability is exercised from the subscriber
+# side instead, with fleet_inspector.py --sensors camera --qos ...
+#
+# Add one block per robot in the fleet (robot_1, robot_2, ... robot_25 - matches
+# gen_topology.sh's NMAX). Robot namespaces are numeric (robot_$k, k=1..N), not lettered.
+/**:
+  ros__parameters:
+    qos_overrides:
+      /robot_1/scan:
+        publisher:
+          reliability: reliable
+      /robot_2/scan:
+        publisher:
+          reliability: reliable
+      /robot_3/scan:
+        publisher:
+          reliability: reliable
+      /robot_4/scan:
+        publisher:
+          reliability: reliable
+      /robot_5/scan:
+        publisher:
+          reliability: reliable
+      /robot_6/scan:
+        publisher:
+          reliability: reliable
+      /robot_7/scan:
+        publisher:
+          reliability: reliable
+      /robot_8/scan:
+        publisher:
+          reliability: reliable
+      /robot_9/scan:
+        publisher:
+          reliability: reliable
+      /robot_10/scan:
+        publisher:
+          reliability: reliable
+      /robot_11/scan:
+        publisher:
+          reliability: reliable
+      /robot_12/scan:
+        publisher:
+          reliability: reliable
+      /robot_13/scan:
+        publisher:
+          reliability: reliable
+      /robot_14/scan:
+        publisher:
+          reliability: reliable
+      /robot_15/scan:
+        publisher:
+          reliability: reliable
+      /robot_16/scan:
+        publisher:
+          reliability: reliable
+      /robot_17/scan:
+        publisher:
+          reliability: reliable
+      /robot_18/scan:
+        publisher:
+          reliability: reliable
+      /robot_19/scan:
+        publisher:
+          reliability: reliable
+      /robot_20/scan:
+        publisher:
+          reliability: reliable
+      /robot_21/scan:
+        publisher:
+          reliability: reliable
+      /robot_22/scan:
+        publisher:
+          reliability: reliable
+      /robot_23/scan:
+        publisher:
+          reliability: reliable
+      /robot_24/scan:
+        publisher:
+          reliability: reliable
+      /robot_25/scan:
+        publisher:
+          reliability: reliable

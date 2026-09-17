@@ -1,0 +1,25 @@
+# EKF configuration for each namespaced mock robot instance.
+# The node runs inside the robot namespace (e.g. /mock_robot_1), so the
+# wildcard prefix is required so the key matches regardless of namespace depth.
+/**/ekf_localization:
+  ros__parameters:
+    frequency: 50.0
+    sensor_timeout: 0.1
+    two_d_mode: true
+    publish_tf: true
+
+    map_frame: map
+    odom_frame: odom
+    base_link_frame: base_link
+    world_frame: odom
+
+    odom0: diff_drive_controller/odom
+    odom0_config: [
+      false, false, false,
+      false, false, false,
+      true,  true,  false,
+      false, false, true,
+      false, false, false
+    ]
+    odom0_differential: false
+    odom0_relative: false

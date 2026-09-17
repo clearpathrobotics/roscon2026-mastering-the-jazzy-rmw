@@ -1,0 +1,21 @@
+name: roscon2026-jazzy-rmw
+
+services:
+
+  # `--profile lichtblick`: Lichtblick web UI with the joystick teleop and
+  # joy-panel extensions pre-installed (auto-loaded into IndexedDB on first
+  # page load). See ./README.md for how the image is built.
+  lichtblick:
+    image: ghcr.io/clearpathrobotics/roscon2026-mastering-the-jazzy-rmw:lichtblick-latest
+    pull_policy: missing
+    build:
+      context: .
+      dockerfile: Dockerfile.lichtblick_extensions
+    container_name: lichtblick
+    hostname: lichtblick
+    profiles: [lichtblick]
+    ports:
+      - "${LICHTBLICK_PORT:-8080}:8080"
+    volumes:
+      - "${LICHTBLICK_DEFAULT_LAYOUT:-./default.json}:/lichtblick/default-layout.json"
+    restart: unless-stopped

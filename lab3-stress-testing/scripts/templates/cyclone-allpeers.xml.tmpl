@@ -1,0 +1,23 @@
+<CycloneDDS>
+  <Domain id="any">
+    <General>
+      <!-- Routed shared-medium topology: every robot and the console is on
+           its own subnet; the only path between them is the wifi-ap. SPDP multicast is
+           TTL=1 and won't cross that hop, so discovery is unicast to every endpoint
+           below, and because the endpoints are on different subnets those SPDP packets
+           ROUTE THROUGH THE AP - so robot-to-robot discovery crosses the shaped
+           bottleneck too. A node listing itself (or an absent peer) is a no-op. -->
+      <AllowMulticast>false</AllowMulticast>
+      <Interfaces>
+        <NetworkInterface autodetermine="true"/>
+      </Interfaces>
+    </General>
+    <Discovery>
+      <ParticipantIndex>auto</ParticipantIndex>
+      <MaxAutoParticipantIndex>120</MaxAutoParticipantIndex>
+      <Peers>
+@@PEERS@@
+      </Peers>
+    </Discovery>
+  </Domain>
+</CycloneDDS>

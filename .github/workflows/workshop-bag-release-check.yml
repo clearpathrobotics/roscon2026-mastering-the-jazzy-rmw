@@ -1,0 +1,24 @@
+name: Workshop bag release check
+
+on:
+  release:
+    types: [published, edited]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  fetch-bag:
+    if: github.event_name == 'workflow_dispatch' || github.event.release.tag_name == 'workshop-bags'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - name: Fetch and validate the published benchmark bag
+        env:
+          GH_TOKEN: ${{ github.token }}
+          WORKSHOP_BAG_REPO: ${{ github.repository }}
+        run: |
+          scripts/workshop fetch-bag benchmark workshop-bags
+          test -f docker/bags/benchmark/metadata.yaml
+          find docker/bags/benchmark -type f -name '*.mcap' -print -quit | grep -q .

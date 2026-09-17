@@ -1,0 +1,20 @@
+name: roscon2026-jazzy-rmw
+services:
+  webshark:
+    image: ghcr.io/clearpathrobotics/roscon2026-mastering-the-jazzy-rmw:webshark-latest
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: webshark
+    # Pull the published image; `docker compose build` still rebuilds it locally.
+    pull_policy: missing
+    network_mode: host
+    cap_add:
+      - NET_RAW
+      - NET_ADMIN
+    volumes:
+      # Point this at wherever captures should land on the robot. This is a
+      # placeholder, not the workshop's default path. Create it first with
+      # `mkdir -p captures`. Compose auto-creates a missing bind mount as root,
+      # and the container's non-root UID 1000 then can't write to it.
+      - ./captures:/captures

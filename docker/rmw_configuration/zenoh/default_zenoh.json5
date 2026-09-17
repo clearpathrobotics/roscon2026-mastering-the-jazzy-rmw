@@ -1,0 +1,26 @@
+{
+  // Default Zenoh session profile: peer-mode multicast mesh with no interface
+  // pinning. Analogous to cyclone/default_cyclone.xml. Overrides
+  // rmw_zenoh_cpp's default `scouting.multicast.enabled: false` and adds
+  // `autoconnect` so discovered peers connect in a router-less setup. Use on a
+  // flat network; the per-node profiles (mock-robot-1.json5, etc.) instead pin
+  // scouting + listen to the shared mock-b0 address for the star topology.
+  mode: "peer",
+
+  scouting: {
+    multicast: {
+      enabled: true,
+      autoconnect: { router: ["peer"], peer: ["peer"] },
+    },
+    gossip: {
+      enabled: true,
+      autoconnect: { router: ["peer"], peer: ["peer"] },
+    },
+  },
+
+  transport: {
+    shared_memory: {
+      enabled: false,
+    },
+  },
+}

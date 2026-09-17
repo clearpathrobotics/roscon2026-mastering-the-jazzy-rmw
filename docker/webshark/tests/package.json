@@ -1,0 +1,13 @@
+{
+  "name": "webshark-tests",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "test": "node --test --test-concurrency=1 --test-global-setup=./global-setup.mjs",
+    "test:ci": "node --test --test-concurrency=1 --test-global-setup=./global-setup.mjs --test-reporter=spec --test-reporter-destination=stdout --test-reporter=junit --test-reporter-destination=junit.xml",
+    "lint": "./lint.sh"
+  },
+  "dependencies": {
+    "puppeteer-core": "^25.8.0"
+  }
+}

@@ -1,0 +1,11 @@
+{
+  "meters_per_pixel": 0.01,
+  "width": 76,
+  "height": 98,
+  "origin_px": [
+    38.91776157259942,
+    48.74500119686127
+  ],
+  "forward_axis": "up",
+  "left_axis": "left"
+}

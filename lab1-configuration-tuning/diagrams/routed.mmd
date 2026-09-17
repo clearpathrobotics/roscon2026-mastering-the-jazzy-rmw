@@ -1,0 +1,17 @@
+graph LR
+  subgraph Browser["Your browser"]
+    LB["Lichtblick web UI :8080"]
+  end
+  Bridge["Foxglove bridge :8765"]
+  Obs["observer - subnet 172.40.100.0/24"]
+  AP["wifi-ap router - IP forwarding (shape with ap_shape.sh)"]
+  R1["mock-robot-1 - subnet 172.40.1.0/24"]
+  R2["mock-robot-2 - subnet 172.40.2.0/24"]
+  RN["mock-robot-N - subnet 172.40.N.0/24"]
+
+  LB -->|ws://localhost:8765| Bridge
+  Bridge --> Obs
+  Obs --- AP
+  R1 --- AP
+  R2 --- AP
+  RN --- AP

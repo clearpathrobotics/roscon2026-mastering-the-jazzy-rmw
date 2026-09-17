@@ -1,0 +1,309 @@
+name: roscon2026-jazzy-rmw
+
+# Compose deployment map
+# ----------------------
+# - `ubuntu-headless` is the default utility/analysis container used throughout
+#   the workshop. It lives on `robots-net`.
+# - `--profile rmw` is Lab 4 Template A: an A/B container pair for each RMW on
+#   `robots-net`, used only by `workshop.sh run --template A`.
+# - `--profile fleet` is Lab 4 Template B: scale the `fleet` service to replay
+#   one MCAP per replica on `fleet-net`; the separate `lab4-receiver` owns the
+#   probe and remains unshaped while `run_sweep.sh` applies its selected
+#   netem profile independently to each replica. This is not Lab 3's shared AP.
+# - Lab 3's routed shared-medium incident is generated separately by
+#   `scripts/gen_topology.sh routed`; its `wifi-ap`, robots, and
+#   console are intentionally not declared in this static Compose file.
+# - `--profile netdata` provides host-level live observability for Labs 3 and 4.
+# - `talker`, `listener`, and `zenoh-router-demo` are standalone image smoke
+#   tests, not lab infrastructure.
+
+x-base: &base
+  init: true
+  stdin_open: true
+  tty: true
+  cap_add: [NET_ADMIN]
+
+x-base-vols: &base-vols
+  - ./rmw_configuration/cyclone/default_cyclone.xml:/cyclonedds.xml:ro
+  - ./rmw_configuration/fast/default_fast.xml:/fastdds.xml:ro
+  - ./rmw_configuration/zenoh/default_zenoh.json5:/zenoh_session.json5:ro
+  - ./scripts:/scripts
+  - ./bags:/bags
+  - ./captures:/captures
+  # Lab 4's report/probe scripts, mounted alongside the shared /scripts tree so
+  # container-side entrypoints and Lab 4 report generation resolve.
+  - ../lab4-benchmarking-and-decision/scripts:/scripts/lab4:ro
+
+# No `platform:` - Docker uses the host's native arch (arm64 on Jetson,
+# amd64 on x86_64), no per-machine changes needed.
+x-ubuntu: &ubuntu
+  <<: *base
+  image: ghcr.io/clearpathrobotics/roscon2026-mastering-the-jazzy-rmw:ubuntu-headless-latest
+  # Pull from GHCR first; only build from source if the image can't be pulled.
+  pull_policy: missing
+  build:
+    context: .
+    dockerfile: ubuntu-headless/Dockerfile
+    additional_contexts:
+      # mock robot workspace packages, prebuilt into the image (COPY --from=mock_ws).
+      mock_ws: ../mock_robot_ws
+  volumes: *base-vols
+
+# `robots-net` is the default Docker bridge for the utility container, Lab 4
+# Template A, and the smoke-test nodes. Every service gets its own network
+# namespace, IP, and `/dev/shm`; ROS traffic therefore crosses a veth/bridge
+# path rather than host networking. Multicast discovery stays inside this
+# bridge, avoiding interference between workshop attendees. The separate
+# identities also prevent Fast DDS from using its same-host shared-memory
+# shortcut, keeping the Template A RMW comparison comparable. `ubuntu-headless`
+# is a convenient inspection point because it shares this bridge.
+x-ubuntu-bridge: &ubuntu-bridge
+  <<: *ubuntu
+  networks: [robots-net]
+
+x-ubuntu-env: &ubuntu-env
+  ROS_DOMAIN_ID: "${ROS_DOMAIN_ID:-25}"
+  CYCLONEDDS_URI: file:///cyclonedds.xml
+
+# Minimal proof-the-image-works demo (from main): talker/listener/zenoh-router-demo
+# on robots-net, independent of the lab harness below.
+x-node: &node
+  image: ghcr.io/clearpathrobotics/roscon2026-mastering-the-jazzy-rmw:ubuntu-headless-latest
+  pull_policy: missing
+  build:
+    context: .
+    dockerfile: ubuntu-headless/Dockerfile
+    additional_contexts:
+      mock_ws: ../mock_robot_ws
+  init: true
+  cap_add: [NET_ADMIN]
+  networks: [robots-net]
+  environment: &node-env
+    ROS_DOMAIN_ID: "${ROS_DOMAIN_ID:-25}"
+    RMW_IMPLEMENTATION: ${RMW_IMPLEMENTATION:-rmw_cyclonedds_cpp}
+    ZENOH_CONFIG_OVERRIDE: 'mode="client";connect/endpoints=["tcp/zenoh-router-demo:7447"]'
+    ZENOH_ROUTER_CHECK_ATTEMPTS: 30
+
+services:
+
+  # Default utility container for every lab. `workshop.sh up` starts it and
+  # Lab 4 runs report-generation Python tools here. It is not a robot/fleet
+  # participant and is deliberately always-on rather than profile-gated.
+  ubuntu-headless:
+    <<: *ubuntu-bridge
+    container_name: ubuntu-headless
+    environment:
+      <<: *ubuntu-env
+      RMW_IMPLEMENTATION: ${RMW_IMPLEMENTATION:-rmw_cyclonedds_cpp}
+
+  # Lab 4 Template A (`workshop.sh run --template A`): `run_sweep.sh` starts
+  # exactly one matching A/B pair below for a synthetic pub/sub and service
+  # benchmark, then removes it after the cell. `*-b` is the receiving/client
+  # side as selected by the benchmark scripts; both use the same ROS domain
+  # and RMW configuration. They remain separate services so traffic crosses
+  # `robots-net` (not shared memory or a host-network fast path). This template
+  # has no *applied* impairment; it is still a Docker bridge/veth network path.
+  # These services are not used by Lab 3 or Template B.
+  ros2-fastdds:
+    <<: *ubuntu-bridge
+    container_name: ros2-fastdds
+    profiles: [rmw]
+    environment:
+      <<: *ubuntu-env
+      RMW_IMPLEMENTATION: rmw_fastrtps_cpp
+      FASTRTPS_DEFAULT_PROFILES_FILE: /fastdds.xml
+
+  ros2-fastdds-b:
+    <<: *ubuntu-bridge
+    container_name: ros2-fastdds-b
+    profiles: [rmw]
+    environment:
+      <<: *ubuntu-env
+      RMW_IMPLEMENTATION: rmw_fastrtps_cpp
+      FASTRTPS_DEFAULT_PROFILES_FILE: /fastdds.xml
+
+  ros2-cyclone:
+    <<: *ubuntu-bridge
+    container_name: ros2-cyclone
+    profiles: [rmw]
+    environment:
+      <<: *ubuntu-env
+      RMW_IMPLEMENTATION: rmw_cyclonedds_cpp
+
+  ros2-cyclone-b:
+    <<: *ubuntu-bridge
+    container_name: ros2-cyclone-b
+    profiles: [rmw]
+    environment:
+      <<: *ubuntu-env
+      RMW_IMPLEMENTATION: rmw_cyclonedds_cpp
+
+  ros2-zenoh:
+    <<: *ubuntu-bridge
+    container_name: ros2-zenoh
+    profiles: [rmw]
+    environment:
+      <<: *ubuntu-env
+      RMW_IMPLEMENTATION: rmw_zenoh_cpp
+      ZENOH_SESSION_CONFIG_URI: /zenoh_session.json5
+
+  ros2-zenoh-b:
+    <<: *ubuntu-bridge
+    container_name: ros2-zenoh-b
+    profiles: [rmw]
+    environment:
+      <<: *ubuntu-env
+      RMW_IMPLEMENTATION: rmw_zenoh_cpp
+      ZENOH_SESSION_CONFIG_URI: /zenoh_session.json5
+
+  # Lab 4 Template B (`workshop.sh run --template B`): scalable replay replicas
+  # on `fleet-net`. The Lab 4-only replay entrypoint validates metadata and plays
+  # the complete bag directory; shared playback is not changed. `run_sweep.sh`
+  # starts it with `--profile fleet --scale fleet=N`, sets the selected RMW,
+  # and removes every replica between benchmark cells. Topic names are placed under
+  # `/robot_<id>` to preserve source identity. The Lab 2 netem helper shapes
+  # ingress and egress on every replica independently, modelling bad links,
+  # not a single shared AP queue. `docker compose exec fleet bash` can inspect
+  # a running replica. Lab 3's routed fleet is generated elsewhere.
+  fleet:
+    image: ghcr.io/clearpathrobotics/roscon2026-mastering-the-jazzy-rmw:ubuntu-headless-latest
+    pull_policy: missing
+    build:
+      context: .
+      dockerfile: ubuntu-headless/Dockerfile
+      additional_contexts:
+        mock_ws: ../mock_robot_ws
+    profiles: [fleet]
+    init: true
+    stdin_open: true
+    tty: true
+    # Own bridge so the link MTU (FLEET_MTU, set on fleet-net at creation) is
+    # modelable without changing the rmw benchmark's conditions on robots-net.
+    networks: [fleet-net]
+    cap_add: [NET_ADMIN, NET_RAW]
+    # The default is Lab 1's peer profile; run_sweep.sh overrides it for tuned
+    # Zenoh variants.
+    environment:
+      - ROS_DOMAIN_ID=${ROS_DOMAIN_ID:-25}
+      - CYCLONEDDS_URI=file:///cyclonedds.xml
+      - FASTRTPS_DEFAULT_PROFILES_FILE=/fastdds.xml
+      - RMW_IMPLEMENTATION=${RMW_IMPLEMENTATION:-rmw_cyclonedds_cpp}
+      - ZENOH_SESSION_CONFIG_URI=${ZENOH_SESSION_CONFIG_URI:-/zenoh_session.json5}
+      - MOCK_ROBOT_MODEL
+      - MOCK_PILOT_RATE
+    volumes:
+      - ./rmw_configuration/cyclone/default_cyclone.xml:/cyclonedds.xml:ro
+      - ./rmw_configuration/fast/default_fast.xml:/fastdds.xml:ro
+      - ./rmw_configuration/zenoh/default_zenoh.json5:/zenoh_session.json5:ro
+      - ./scripts:/scripts
+      - ../lab3-stress-testing/scripts:/scripts/lab3:ro
+      - ../lab4-benchmarking-and-decision/scripts:/scripts/lab4:ro
+      - ${BAG_DIR:-./bags}:/bags:ro
+    command: ["bash", "-c", "source /opt/ros/jazzy/setup.bash && exec python3 /scripts/lab4/replay_lab4.py --bag-dir /bags"]
+
+  # Lab 4 receiver: the only process that runs the class probe. It has no bag
+  # volume and no playback command, so it cannot accidentally become another
+  # workload publisher. It shares fleet-net but is deliberately never shaped.
+  lab4-receiver:
+    image: ghcr.io/clearpathrobotics/roscon2026-mastering-the-jazzy-rmw:ubuntu-headless-latest
+    pull_policy: missing
+    build:
+      context: .
+      dockerfile: ubuntu-headless/Dockerfile
+      additional_contexts:
+        lab1: ../lab1-configuration-tuning
+    profiles: [fleet]
+    init: true
+    stdin_open: true
+    tty: true
+    networks: [fleet-net]
+    environment:
+      - ROS_DOMAIN_ID=${ROS_DOMAIN_ID:-25}
+      - CYCLONEDDS_URI=file:///cyclonedds.xml
+      - FASTRTPS_DEFAULT_PROFILES_FILE=/fastdds.xml
+      - RMW_IMPLEMENTATION=${RMW_IMPLEMENTATION:-rmw_cyclonedds_cpp}
+      - ZENOH_SESSION_CONFIG_URI=${ZENOH_SESSION_CONFIG_URI:-/zenoh_session.json5}
+    volumes:
+      - ./rmw_configuration/cyclone/default_cyclone.xml:/cyclonedds.xml:ro
+      - ./rmw_configuration/fast/default_fast.xml:/fastdds.xml:ro
+      - ./rmw_configuration/zenoh/default_zenoh.json5:/zenoh_session.json5:ro
+      - ../lab4-benchmarking-and-decision/scripts:/scripts/lab4:ro
+    command: ["bash", "-c", "exec sleep infinity"]
+
+  # Lab 4 Template B only: an optional `rmw_zenohd` router on `fleet-net` for
+  # router-based Zenoh variants (currently `zenoh-lowlat`). The normal Zenoh
+  # profile is a router-less peer mesh and does not start this service. Its
+  # fixed name supplies Docker DNS for `tcp/zenoh-router:7447`; `run_sweep.sh`
+  # starts it before fleet replicas and removes it with each relevant cell.
+  zenoh-router:
+    <<: *ubuntu
+    container_name: zenoh-router
+    profiles: [zenoh-router]
+    networks: [fleet-net]
+    init: true
+    environment:
+      - ROS_DOMAIN_ID=${ROS_DOMAIN_ID:-25}
+    command: ["bash", "-c", "source /opt/ros/jazzy/setup.bash && exec ros2 run rmw_zenoh_cpp rmw_zenohd"]
+
+  # --- minimal proof-the-image-works demo (main), independent of the lab harness ---
+  # A talker and a listener in separate containers on the robots-net bridge. Swap
+  # RMW_IMPLEMENTATION in .env to run the same exchange over Fast DDS, Cyclone DDS
+  # or Zenoh: `docker compose up talker listener` / `docker compose exec talker bash`.
+  zenoh-router-demo:
+    <<: *node
+    container_name: zenoh-router-demo
+    profiles: [zenoh]
+    environment:
+      <<: *node-env
+      RMW_IMPLEMENTATION: rmw_zenoh_cpp
+      ZENOH_CONFIG_OVERRIDE: 'mode="router";listen/endpoints=["tcp/0.0.0.0:7447"]'
+    command: ["bash", "-lc", "source /opt/ros/jazzy/setup.bash && ros2 run rmw_zenoh_cpp rmw_zenohd"]
+
+  talker:
+    <<: *node
+    container_name: talker
+    depends_on:
+      zenoh-router-demo:
+        condition: service_started
+        required: false
+    command: ["bash", "-lc", "source /opt/ros/jazzy/setup.bash && ros2 run demo_nodes_cpp talker"]
+
+  listener:
+    <<: *node
+    container_name: listener
+    depends_on:
+      zenoh-router-demo:
+        condition: service_started
+        required: false
+    command: ["bash", "-lc", "source /opt/ros/jazzy/setup.bash && ros2 run demo_nodes_cpp listener"]
+
+networks:
+  # Private Docker bridge for `ubuntu-headless`, Lab 4 Template A's A/B pairs,
+  # and the standalone demo. ICC permits containers on this bridge to exchange
+  # ROS traffic. The fixed /24 keeps their multicast and unicast traffic out of
+  # the physical LAN; dynamic container addresses are allocated from the upper
+  # half of the subnet.
+  robots-net:
+    driver: bridge
+    driver_opts:
+      com.docker.network.bridge.enable_icc: "true"
+    ipam:
+      config:
+        - subnet: 172.30.0.0/24
+          ip_range: 172.30.0.128/25
+
+  # Private Docker bridge for Lab 4 Template B (`fleet` and optional
+  # `zenoh-router`) only. Keeping it separate prevents fleet scale, MTU, and
+  # per-replica netem experiments from affecting Template A on `robots-net`.
+  # The MTU is chosen when the network is created, so each new replica's eth0
+  # starts with the intended value; changing a live container interface can
+  # blackhole established TCP. Override before `docker compose up`, for example
+  # `FLEET_MTU=1400 docker compose --profile fleet up ...`.
+  fleet-net:
+    driver: bridge
+    driver_opts:
+      com.docker.network.driver.mtu: "${FLEET_MTU:-1500}"
+    ipam:
+      config:
+        - subnet: 172.32.0.0/24
+          ip_range: 172.32.0.128/25
