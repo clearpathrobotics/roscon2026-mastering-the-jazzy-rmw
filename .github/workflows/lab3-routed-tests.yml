@@ -73,7 +73,9 @@ jobs:
           scripts/workshop -t routed up 3 zenoh
           [[ "$(docker inspect --format '{{.Id}}' wifi-ap)" != "$cyclone_ap" ]]
           [[ "$(docker inspect --format '{{.Id}}' observer)" != "$cyclone_console" ]]
-          timeout 10 docker exec wifi-ap sh -c 'ss -ltn | grep -q :7447'
+          # Poll: rmw_zenohd on the AP takes a few seconds to bind :7447 after `up`
+          # returns, so a one-shot check races its startup.
+          timeout 30 docker exec wifi-ap sh -c 'until ss -ltn | grep -q :7447; do sleep 1; done'
           scripts/workshop -t routed netem good
           docker exec wifi-ap grep -Fx 'capacity_mbps=100.000' /run/ap_shape.env
           # The observer is idle after `up`; its Foxglove bridge (which also starts
