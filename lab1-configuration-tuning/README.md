@@ -32,6 +32,8 @@ http://localhost:8080/?ds=foxglove-websocket&ds.url=ws://localhost:8765
 Opening plain `http://localhost:8080` does **not** select the data source — use the full
 URL above.
 
+Import the Lichtblick layout, located at `docker/lichtblick/default.json`, by Navigating to Menu (top-left corner) -> View -> Import layout from file...
+
 When you are done, tear everything down:
 
 ```bash

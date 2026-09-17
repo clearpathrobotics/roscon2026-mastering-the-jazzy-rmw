@@ -18,6 +18,7 @@ fleet up first with `scripts/workshop -t flat up`.
    ```bash
    scripts/workshop -t flat up
    scripts/workshop observer bridge
+   scripts/workshop lichtblick up
    ```
 
 2. Open an interactive shell on the observer:
