@@ -51,4 +51,4 @@ for all three reference runs:
 ./reference-analysis.sh
 ```
 
-The resulting nine charts are in `output/`.
+The resulting charts are in `output/`.

@@ -23,3 +23,12 @@ for stem in fast_bridge cyclone_bridge zenoh_perhost_bridge; do
 		"reference-captures/rmw_subscriber/${stem}_arrivals.csv" \
 		"$stem"
 done
+
+python analysis/plot_4camera_comparison.py \
+	reference-captures/rmw_subscriber/fast_bridge_arrivals.csv \
+	reference-captures/rmw_subscriber/cyclone_bridge_arrivals.csv \
+	reference-captures/rmw_subscriber/zenoh_perhost_bridge_arrivals.csv \
+	reference-captures/rmw_subscriber/fast_bridge_markers.csv \
+	reference-captures/rmw_subscriber/cyclone_bridge_markers.csv \
+	reference-captures/rmw_subscriber/zenoh_perhost_bridge_markers.csv \
+	output/camera_comparison.png
