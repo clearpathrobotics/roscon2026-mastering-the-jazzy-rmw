@@ -1,26 +1,47 @@
 #!/usr/bin/env python3
-# scripts/netdata/plot.py <cap_dir> <ts> <markers.csv> <out.png> "<title>" [reasm.csv] [arrivals.csv] [rmw]
-#
-# LAYER 2 figure (netdata / OS counters), on the same sweep and netem bands as the layer-1 and
-# layer-3 figures so all three stack. Three stacked strips, all cross-RMW:
-#   1. throughput   - orchestrator net RX (kilobits/s). The system view, and the point is that it
-#                     stays high under load while frames die: bytes keep crossing because only a few
-#                     percent are lost, so this panel is blind to the frame collapse.
-#   2. frames       - attempted vs delivered camera frames/s. Delivered is the layer-1 arrival count
-#                     as an aggregate; attempted is the offered load (the clean-band rate). The shaded
-#                     gap is frames lost, and it is computed the same way for every RMW.
-#   3. repair       - where the transport is working: IP reassembly fails/s for the UDP RMWs (Fast,
-#                     Cyclone), TCP retransmits/s for Zenoh. Same slot, RMW-appropriate counter. The
-#                     tell is the contrast across RMWs: reassembly fails spike for Fast, stay near zero
-#                     for Cyclone (its frames die at the RTPS layer), and Zenoh shows retransmits
-#                     instead because TCP recovers the bytes rather than dropping the frame.
-# netdata_series() is lifted from this repo's plot_run.py (nvh-cpr).
-import sys, csv, json
-from pathlib import Path
+"""
+Usage:
+    plot_2netdata.py <capture-dir> <timestamp> <markers.csv> <output.png> \
+        [title] [repair.csv] [arrivals.csv] [rmw]
+
+Render a layer-2 netdata timeline. ``capture-dir`` contains the netdata JSON
+export for the orchestrator. Reference captures use
+``<timestamp>_<container>_net.json``; legacy per-interface exports named
+``<timestamp>.netdata_<container>_net_ethN.json`` are also accepted.
+
+The marker CSV contains ``epoch,label``. ``repair.csv`` and ``arrivals.csv``
+are optional and add the repair and delivered-frame panels when present. The
+repair CSV contains ``t_epoch,reqds,oks,fails,retrans``. ``rmw`` selects the
+repair column: a value beginning with ``zen`` uses TCP retransmits; every
+other value uses IP reassembly failures. Quote ``title`` when it contains
+spaces. The output is a PNG with throughput, delivered-versus-offered camera
+frames, and the transport repair counter.
+
+Explanation of the charts
+=========================
+   1. throughput   - orchestrator net RX (kilobits/s). The system view, and the point is that it
+                     stays high under load while frames die: bytes keep crossing because only a few
+                     percent are lost, so this panel is blind to the frame collapse.
+   2. frames       - attempted vs delivered camera frames/s. Delivered is the layer-1 arrival count
+                     as an aggregate; attempted is the offered load (the clean-band rate). The shaded
+                     gap is frames lost, and it is computed the same way for every RMW.
+   3. repair       - where the transport is working: IP reassembly fails/s for the UDP RMWs (Fast,
+                     Cyclone), TCP retransmits/s for Zenoh. Same slot, RMW-appropriate counter. The
+                     tell is the contrast across RMWs: reassembly fails spike for Fast, stay near zero
+                     for Cyclone (its frames die at the RTPS layer), and Zenoh shows retransmits
+                     instead because TCP recovers the bytes rather than dropping the frame.
+"""
+
+import csv
+import json
 import matplotlib
+import sys
+
+from matplotlib.lines import Line2D
+from pathlib import Path
+
 matplotlib.use("Agg")
 import matplotlib.pyplot as plt
-from matplotlib.lines import Line2D
 
 CONTAINER_COLORS = {"mock-robot-1": "#E67E22", "mock-robot-2": "#2980B9",
                     "mock-robot-3": "#27AE60", "orchestrator": "#333333"}

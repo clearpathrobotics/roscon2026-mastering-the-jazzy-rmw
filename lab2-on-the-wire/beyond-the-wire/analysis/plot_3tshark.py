@@ -1,32 +1,36 @@
 #!/usr/bin/env python3
 """
 Usage:
-  plot_capture.py <TS>                 # resolve fleet_<TS>.pcap + <TS>.markers.csv
-  plot_capture.py <capture.pcap>       # explicit pcap
+    plot_3tshark.py <timestamp>
+    plot_3tshark.py <capture.pcap>
 
-Writes captures/<TS>_timeline.png with two stacked panels sharing a wall-clock axis,
-one coloured line per robot (keyed on source IP), impairment steps marked:
-  top    complete-frame delivery interval (ms):  gap between successfully
-                                                   reassembled image frames (a
-                                                   latency-style view; NOT one-way)
-  bottom image frames lost / s                  :  samples whose DATA_FRAG set was
-                                                   incomplete (a dropped fragment
-                                                   sinks the whole frame)
+With a timestamp, read ``fleet_<timestamp>.pcap`` from ``CAPTURES_DIR``. With
+an explicit PCAP path, read that file directly. In both cases, markers are
+loaded from ``<timestamp>.markers.csv`` in ``CAPTURES_DIR`` when available.
+``CAPTURES_DIR`` defaults to ``/captures``.
 
-Runs inside the webshark container (tshark + matplotlib + pandas).
+Write ``<timestamp>_timeline.png`` to ``CAPTURES_DIR``. The output has two
+panels sharing a wall-clock axis, with one colored line per robot:
+
+    top    complete-frame delivery interval in milliseconds, which is the gap
+                 between successfully reassembled image frames, not one-way latency
+    bottom image frames lost per second, where an incomplete DATA_FRAG set counts
+                 as a lost frame
 """
+
 import math
+import matplotlib
+import numpy as np
 import os
+import pandas as pd
 import subprocess
 import sys
+
 from collections import defaultdict
 from pathlib import Path
 
-import matplotlib
 matplotlib.use("Agg")
 import matplotlib.pyplot as plt
-import numpy as np
-import pandas as pd
 
 CAPTURES_DIR = Path(os.environ.get("CAPTURES_DIR", "/captures"))
 

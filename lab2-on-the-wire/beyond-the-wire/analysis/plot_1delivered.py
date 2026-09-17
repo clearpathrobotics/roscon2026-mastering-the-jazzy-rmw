@@ -1,20 +1,32 @@
 #!/usr/bin/env python3
-# rmw_subscriber/plot.py <arrivals.csv> <markers.csv> <out.png> "<title>"
-# LAYER 1 figure (rmw subscriber, app-level; NOT tshark). The layer-3 tshark analyzer emits the
-# SAME arrivals schema (t_epoch,robot,topic), so this same plotter renders both for side-by-side.
-# Timeline benchmark figure for one RMW on one topology, overlaying TWO payloads: the
-# compressed camera stream (solid) and the 2D scan (dashed). x = wall time; each netem
-# profile is a shaded band with a vertical marker at its start. Two stacked panels:
-# received msgs/s (rolling) and interarrival jitter (rolling). One color per robot, one
-# linestyle per topic. Reads the arrivals CSV (t_epoch,robot,topic) + markers the demo
-# records. Both payloads publish at 10 Hz, so a healthy line sits at 10; the camera falls
-# under loss (large fragmented frame) while the scan holds (small single packet), which is the
-# divergence the benchmark looks for. Runs in webshark.
-import sys, statistics
+"""
+Usage:
+    plot_1delivered.py <arrivals.csv> <markers.csv> <output.png> [title]
+
+Render a layer-1 application-delivery timeline. The arrivals CSV must contain
+``t_epoch,robot,topic``. The markers CSV must contain ``epoch,label`` and
+defines the shaded netem bands. The arrivals CSV may be the subscriber export
+or the tshark export, because both use the same schema.
+
+The optional title is one command-line argument. Quote it when it contains
+spaces. The output is a two-panel PNG showing rolling message rate and
+interarrival jitter for camera and scan messages.
+
+Explanation of the charts
+=========================
+   1. rolling message rate   - received messages per second, computed over a sliding window.
+                            - both payloads (camera and scan)
+   2. interarrival jitter   - standard deviation of interarrival times (ms) over a rolling window.
+"""
+
 import matplotlib
+import statistics
+import sys
+
+from matplotlib.lines import Line2D
+
 matplotlib.use("Agg")
 import matplotlib.pyplot as plt
-from matplotlib.lines import Line2D
 
 ROBOT_COLORS = {1: "#E67E22", 2: "#2980B9", 3: "#27AE60"}
 TOPIC_STYLE = {"camera": "-", "scan": "--"}
