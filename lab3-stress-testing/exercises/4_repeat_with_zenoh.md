@@ -295,6 +295,8 @@ is validated end to end.
    and apply `ap bad`. Watch
    the robot stop driving rather than merely appearing stale, and confirm it with
    `ros2 topic hz /robot_1/diff_drive_controller/cmd_vel` against `cmd_vel_timeout: 0.5`.
+   How hard it stalls depends on your machine: `ap bad` may only make it stutter, so apply
+   `ap reorder` (or `ap severe`) for a decisive, continuous stop.
    Then put it back. This is the single most valuable thing to be able to recognise in a
    real deployment. Use `timeout 20 ros2 topic hz
    /robot_1/diff_drive_controller/cmd_vel` for the confirmation so it does not leave a
