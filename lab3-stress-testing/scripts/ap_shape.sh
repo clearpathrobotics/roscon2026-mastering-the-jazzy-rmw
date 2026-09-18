@@ -62,15 +62,7 @@ AIRTIME_MPU="${AIRTIME_MPU:-128}"            # minimum airtime cost per packet (
 AP_SLOT="${AP_SLOT:-}"                        # optional slotted channel access, e.g. "1ms 8ms"
 AP_EXEC_TIMEOUT="${AP_EXEC_TIMEOUT:-5}"
 
-# Shared-AP shaping profiles, in increasing severity.
-# Apply: `workshop -t routed netem <profile>`; `clear` removes shaping; `list` shows them.
-#   good      100mbit  delay ~5ms    loss 0.1%   near-perfect link
-#   degraded  100mbit  delay ~15ms   no loss     latency only
-#   lossy      50mbit  delay ~30ms   loss 5%     reduced rate + real loss
-#   bad        20mbit  delay ~80ms   loss 15%    congested + lossy
-#   severe     10mbit  delay ~150ms  loss 30%    stalls a control loop routed over the AP
-#   reorder    10mbit  delay ~150ms  loss 30%    severe + 25% packet reordering (hardest)
-# Format: profile -> "rate | netem-args".
+# profile -> "rate | netem-args"
 declare -A PROFILES=(
     [good]="100mbit|delay 5ms 1ms distribution paretonormal loss gemodel 0.1%"
     [degraded]="100mbit|delay 15ms 5ms distribution paretonormal"
