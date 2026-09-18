@@ -38,6 +38,10 @@ scripts/workshop -t routed up 15 zenoh
 scripts/workshop -t routed netem degraded
 ```
 
+Note that `up 15 zenoh` (no `--rmw-directory`) is the **default** routed Zenoh config, not
+Exercise 4's hub-and-spoke fixture: here discovery gossip is on and the robot routers do
+not uplink to `wifi-ap` (the `observer` dials each robot router directly).
+
 Use `ap bad` only after recording the `degraded` behaviour. `zenoh-lowlat` is Lab 4's
 second Zenoh candidate: the same `rmw_zenoh_cpp`, configured as a client of a dedicated
 router with Zenoh's low-latency transport (no batching or QoS multiplexing). A repeatable
