@@ -34,7 +34,7 @@ Runs on the flat topology. Start from the repository root.
 
    ```bash
    ls docker/rmw_configuration/flat/cyclone
-   cat docker/rmw_configuration/flat/cyclone/mock-robot-1.xml
+   cat docker/rmw_configuration/flat/cyclone/mock-robot.xml
    ```
 
    Note how the file puts the robot on the shared bus with plain multicast discovery — this
@@ -61,7 +61,7 @@ Runs on the flat topology. Start from the repository root.
    ```bash
    scripts/workshop -t flat up 3 zenoh
    scripts/workshop observer bridge
-   cat docker/rmw_configuration/flat/zenoh/mock-robot-1.json5
+   cat docker/rmw_configuration/flat/zenoh/mock-robot.json5
    ```
 
 5. Refresh Lichtblick after each switch. The operator view looks the same every time — the
