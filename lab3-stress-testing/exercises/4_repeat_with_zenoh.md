@@ -32,7 +32,7 @@ subject of this exercise is **TCP under loss**, not Zenoh.
    ```bash
    cd "$(git rev-parse --show-toplevel)"
    scripts/workshop -t routed down
-   scripts/workshop -t routed up 3 zenoh
+   scripts/workshop -t routed up 3 zenoh --rmw-directory lab3-stress-testing/fixtures/routed_zenoh_ap_hub
    scripts/workshop observer bridge
    scripts/workshop lichtblick up
    scripts/workshop -t routed netem good
@@ -61,13 +61,13 @@ subject of this exercise is **TCP under loss**, not Zenoh.
    only thing that changes live, which is why it is the knob built for a live demo.
    </details>
 
-2. Inspect the deployment before introducing a fault. Zenoh uses **one `rmw_zenohd`
-   per host**. Every robot runs its own router, and local ROS nodes connect to it over
-   loopback. The `observer` does not run a router: it connects across the AP to each
-   robot's router as a Zenoh peer. In the normal no-uplink design, robot routers have
-   no `connect` target; the observer dials them.
-   This workshop configuration uses TCP, so each observer-to-robot connection carries
-   that robot's remote traffic over the shared AP:
+2. Inspect the deployment before introducing a fault. Zenoh is deployed the way its
+   maintainers recommend: **one `rmw_zenohd` per host**. Every robot runs its own router,
+   and local ROS nodes connect to it over loopback. Each robot's router then links to the
+   infrastructure router on `wifi-ap`. The `observer` does not run a router: it joins as a
+   Zenoh peer that dials the `wifi-ap` hub, so it sees the whole fleet through the AP.
+   This workshop configuration uses TCP, so each host's remote traffic crosses the shared
+   AP while its own control loop stays on loopback:
 
    ```bash
     docker exec mock-robot-1 sh -c '
@@ -83,9 +83,9 @@ subject of this exercise is **TCP under loss**, not Zenoh.
    `$ZENOH_SESSION_CONFIG_URI` (e.g. `/rmw_configuration/routed/zenoh/mock-robot-1.json5`) is the
    ROS client's configuration: it connects to its local router at `tcp/localhost:7447`.
    `$ZENOH_ROUTER_CONFIG_URI` (e.g. `mock-robot-1-router.json5` in the same directory) is that
-   router's configuration: it has no `connect` target in the normal deployment. Confirm that
+   router's configuration: it connects onward to `tcp/wifi-ap:7447`. Confirm that
    `mock-robot-1` and `wifi-ap` are listening; the `observer` is a peer and will not listen
-   on 7447 (it dials the robots' routers instead). `LISTEN ... 0.0.0.0:7447` means the router accepts TCP
+   on 7447 (it dials the `wifi-ap` hub). `LISTEN ... 0.0.0.0:7447` means the router accepts TCP
    connections on every IPv4 interface; `LISTEN ... *:7447` has the same practical
    meaning here. These lines prove that each router is ready to accept a connection, not
    that the routers have connected or that ROS data is flowing. Then watch the map for
@@ -113,9 +113,8 @@ subject of this exercise is **TCP under loss**, not Zenoh.
    <details>
    <summary>Why the topology is worth this much attention</summary>
 
-   The deployed `peer` sessions connect to a local router over loopback. Robot routers
-   have no uplink; the observer connects to them across `wifi-ap`, so remote robot/observer
-   traffic crosses the AP while the
+   The deployed `peer` sessions connect to a local router over loopback. The local router
+   links onward to `wifi-ap`, so remote robot/observer traffic crosses the AP while the
    robot's local `pilot` -> `cmd_vel` -> `twist_mux` -> controller path does not depend
    on it. Switch the sessions to `client` mode pointed at the remote router - the optional
    exercise below shows how - and that local control path is relayed through `wifi-ap`.
@@ -289,10 +288,11 @@ is validated end to end.
    earlier attempt did not deliver the fleet map even on an unshaped link, so treat this
    as a design exercise and say what evidence you would demand before shipping it.
 
-3. **Try the wrong deployment on purpose.** The normal deployment has no robot-router
-   uplink: the observer connects to each robot router. Change `connect` in
-   [`routed-client.json5`](../scripts/discovery/zenoh/routed-client.json5) to
-   `tcp/wifi-ap:7447` with `mode: "client"`, recreate the fleet, and apply `ap bad`. Watch
+3. **Try the wrong deployment on purpose.** Change `connect` in
+   [`mock-robot-1.json5`](../fixtures/routed_zenoh_ap_hub/mock-robot-1.json5) to
+   `tcp/wifi-ap:7447` with `mode: "client"`, recreate the fleet with
+   `scripts/workshop -t routed up 3 zenoh --rmw-directory lab3-stress-testing/fixtures/routed_zenoh_ap_hub`,
+   and apply `ap bad`. Watch
    the robot stop driving rather than merely appearing stale, and confirm it with
    `ros2 topic hz /robot_1/diff_drive_controller/cmd_vel` against `cmd_vel_timeout: 0.5`.
    Then put it back. This is the single most valuable thing to be able to recognise in a
@@ -318,14 +318,15 @@ keep updating even if the in-band Foxglove stream stalls under `bad` - a frozen
 in-band map with live out-of-band charts means stale telemetry, not a dead fleet.
 
 **ROS CLI warns that it cannot connect to a Zenoh router.** It is using the flat-network
-`/zenoh_session.json5` profile rather than the routed client profile. Confirm the router
+`/rmw_configuration/flat/zenoh/mock-robot.json5` profile rather than the routed client
+profile. Confirm the router
 is listening, then recreate the routed services so `scripts/workshop -t routed up` regenerates their
 environment; this does not stop Netdata:
 
 ```bash
 docker exec wifi-ap sh -c 'ss -ltn | grep 7447'
 scripts/workshop -t routed down
-scripts/workshop -t routed up 3 zenoh
+scripts/workshop -t routed up 3 zenoh --rmw-directory lab3-stress-testing/fixtures/routed_zenoh_ap_hub
 scripts/workshop -t routed netem good
 ```
 

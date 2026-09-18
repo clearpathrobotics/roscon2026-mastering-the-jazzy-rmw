@@ -1,0 +1,19 @@
+// Routed shared-medium topology, robot session config. This ROS node connects to
+// its own host's Zenoh router at tcp/localhost:7447 (mock-robot-N-router.json5);
+// that router uplinks to the wifi-ap hub, so only genuinely remote traffic crosses
+// the AP. Static (not generated): the content is identical for every N, unlike the
+// Cyclone/Fast DDS unicast peer lists, which must enumerate every endpoint and so
+// change size with N.
+{
+  // Peer mode is rmw_zenoh's default and the reason this deployment is fair: the local
+  // router is used for DISCOVERY and host-to-host forwarding, but sessions on the same
+  // host talk peer-to-peer over loopback. In "client" mode every message - including
+  // pilot -> twist_mux inside one container - is relayed by the router instead.
+  mode: "peer",
+  connect: { endpoints: ["tcp/localhost:7447"] },
+  listen: { endpoints: ["tcp/localhost:0"] },
+  // ros2_control's pal_statistics publishers request timestamp sequencing. Zenoh
+  // rejects those advanced publishers unless session timestamping is enabled.
+  timestamping: { enabled: true },
+  transport: { shared_memory: { enabled: false } },
+}
