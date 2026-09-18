@@ -115,7 +115,12 @@ main() {
         webshark) cmd_webshark "$@" ;;
         netdata) cmd_netdata "$@" ;;
         shell) cmd_shell "$@" ;;
-        netem) cmd_netem "$topo" "$@" ;;
+        netem)
+            # Bare netem (status) with no explicit -t should read the fleet that is
+            # actually running, not the star default, so it reports the AP/link shaping
+            # instead of "star has no shaping".
+            [[ -n "$topo_set" ]] || { local rt; rt="$(running_topology)"; [[ -n "$rt" ]] && topo="$rt"; }
+            cmd_netem "$topo" "$@" ;;
         preflight)
             # Bare preflight (no explicit -t) should check the fleet that is actually
             # running, not the star default, so it doesn't report a missing compose file.
