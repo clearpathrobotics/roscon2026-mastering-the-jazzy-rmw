@@ -333,7 +333,8 @@ evidence you need. To narrow it to one RMW's traffic instead of the whole shared
 subnet: for the default `ROS_DOMAIN_ID=25`, the RTPS base is `7400 + 250 * 25 = 13650`,
 so a DDS-focused capture can use `-f "net 172.40.0.0/16 and udp portrange 13650-13849"`.
 For Zenoh, every node connects to the router over TCP (see
-`discovery/zenoh/routed-client.json5`), so use `-f "net 172.40.0.0/16 and tcp port 7447"`.
+`lab3-stress-testing/fixtures/routed_zenoh_ap_hub/mock-robot-1.json5`), so use
+`-f "net 172.40.0.0/16 and tcp port 7447"`.
 
 Leave the routed fleet running. [Exercise 4](4_repeat_with_zenoh.md) repeats the same
 incident over TCP, using Zenoh's default transport, to investigate what reliable

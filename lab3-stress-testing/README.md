@@ -131,10 +131,10 @@ Used in:
 - [Exercise 4](exercises/4_repeat_with_zenoh.md), for the TCP transport comparison.
 
 Cyclone/Fast DDS discovery (every peer's IP, so it changes with N) is generated
-per run from `scripts/templates/*.xml.tmpl`; Zenoh's routed config never depends
-on N (every node is just a client of the one router), so it's a static file at
-`scripts/discovery/zenoh/routed-client.json5`. Inspect whatever the current run
-actually generated - compose override included - with:
+per run from `scripts/templates/*.xml.tmpl`; Zenoh's routed config is generated too,
+but its content never depends on N (every node just connects to its own host's
+router at `tcp/localhost:7447`). Inspect whatever the current run actually
+generated - compose override included - with:
 
 ```bash
 scripts/workshop -t routed netem
