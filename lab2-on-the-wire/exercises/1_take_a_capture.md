@@ -23,6 +23,11 @@ from [Setup](../README.md).
    ```
    Wait until three files have appeared before going on.
 
+   If Webshark is not capturing:
+   ```
+   chmod 777 lab2-on-the-wire/captures/
+   ```
+
 2. Open <http://localhost:8085/webshark/> and click the file at the top of the list.
    That is the newest window, as Webshark sorts newest on top.
 
