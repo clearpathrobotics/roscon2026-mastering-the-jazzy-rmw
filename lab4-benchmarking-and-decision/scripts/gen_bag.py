@@ -5,7 +5,7 @@ Publishes one topic per workshop class, named to match the `match` regexes in
 benchmark.yaml, so a short MCAP recording of these can substitute for the real
 dataset during a test drive:
 
-  sensor  -> /camera/image_raw  (sensor_msgs/Image, ~230 KB, 10 Hz)
+  sensor  -> /camera/image_raw  (sensor_msgs/Image, ~37 KB, 10 Hz)
   control -> /cmd_vel           (geometry_msgs/Twist, 20 Hz)
   state   -> /tf                (tf2_msgs/TFMessage, 30 Hz)
 """
