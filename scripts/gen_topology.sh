@@ -491,6 +491,7 @@ EOF
       HALF_SCAN: "\${HALF_SCAN:-0}"
       MOCK_USE_MECANUM: \${DEFAULT_GROUP_USE_MECANUM:-false}
       MOCK_RUN_PILOT: "\${MOCK_RUN_PILOT:-true}"
+      MOCK_START_DELAY: "\${MOCK_START_DELAY:-0}"
       WORKLOAD: \${WORKLOAD:-mock}
     command: ["bash", "/scripts/run_mock_robot.sh"]
 EOF

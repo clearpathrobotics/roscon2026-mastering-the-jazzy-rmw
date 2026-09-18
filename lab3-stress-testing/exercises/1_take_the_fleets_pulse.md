@@ -18,15 +18,21 @@ stack using the [Lab 3 setup](../README.md#before-you-begin).
 
 ## Steps
 
-1. Select Cyclone DDS, then bring up Lab 1's fleet unchanged plus 6 replicas on the
+1. Select Cyclone DDS. Start Netdata **before** the fleet so its StatsD listener is up
+   when the nodes join, then bring up Lab 1's fleet unchanged plus 6 replicas on the
    default config:
 
    ```bash
    cd "$(git rev-parse --show-toplevel)"
-   lab3-stress-testing/scripts/ex1_up.sh 6
    scripts/workshop netdata up
-   scripts/workshop -t flat collector up
+   lab3-stress-testing/scripts/ex1_up.sh 6
    ```
+
+   The fleet collector is normally its own step (`scripts/workshop -t flat collector up`).
+   `ex1_up.sh` runs it for you right after the fleet starts, and briefly holds the robots'
+   ROS startup so the collector is already recording when the fleet emits its discovery
+   burst - start them by hand in the wrong order and the burst is gone before anything is
+   watching it.
 
 2. Open <http://localhost:19999>. On Netdata's welcome screen, click **Skip and use
    anonymously** below the sign-in button. Do not enter an account or sign in. Once the
