@@ -57,7 +57,7 @@ subject of this exercise is **TCP under loss**, not Zenoh.
    ROS 2 has no API to renegotiate them on a running node. Zenoh also needs `wifi-ap` to
    start its routers, and the `observer` container must use Zenoh to receive the robots'
    topics. That is why Step 1 recreates the routed topology instead of flipping an
-   environment variable under running nodes. The network shaping (`ap bad`/`good`) is the
+   environment variable under running nodes. The network shaping (`netem bad`/`good`) is the
    only thing that changes live, which is why it is the knob built for a live demo.
    </details>
 
@@ -80,6 +80,11 @@ subject of this exercise is **TCP under loss**, not Zenoh.
    docker exec wifi-ap sh -c 'ss -ltn | grep 7447'
    ```
 
+   **Question: what do you expect these checks to prove?** Predict what a listener on
+   `mock-robot-1` and `wifi-ap` says about readiness, and what it cannot say about an
+   established Zenoh connection. Also predict why the observer should be a peer that
+   dials the hub rather than another listener on port 7447.
+
    `$ZENOH_SESSION_CONFIG_URI` (e.g. `/rmw_configuration/routed/zenoh/mock-robot-1.json5`) is the
    ROS client's configuration: it connects to its local router at `tcp/localhost:7447`.
    `$ZENOH_ROUTER_CONFIG_URI` (e.g. `mock-robot-1-router.json5` in the same directory) is that
@@ -87,7 +92,12 @@ subject of this exercise is **TCP under loss**, not Zenoh.
    `mock-robot-1` and `wifi-ap` are listening; the `observer` is a peer and will not listen
    on 7447 (it dials the `wifi-ap` hub). `LISTEN ... 0.0.0.0:7447` means the router accepts TCP
    connections on every IPv4 interface; `LISTEN ... *:7447` has the same practical
-   meaning here. These lines prove that each router is ready to accept a connection, not
+   meaning here.
+
+   <details>
+   <summary>Answer: listening proves readiness, not an established data path</summary>
+
+   These lines prove that each router is ready to accept a connection, not
    that the routers have connected or that ROS data is flowing. Then watch the map for
    30 seconds with `good` and take a **Zenoh healthy baseline** with the inspector, the
    same way you did in
@@ -101,14 +111,26 @@ subject of this exercise is **TCP under loss**, not Zenoh.
    nothing has to leave the container to reach a local subscriber. That is the number to
    compare against once the medium degrades.
 
+   </details>
+
 3. Degrade the medium **without touching anything else**:
 
    ```bash
    scripts/workshop -t routed netem bad
    ```
 
+   **Question: will this look different from Exercise 3?** Predict which parts should
+   remain the same (shared AP queue, stale TF, map symptoms) and which part may differ
+   because Zenoh carries the traffic over TCP. Record your prediction before watching
+   the ribbon colours and map.
+
+   <details>
+   <summary>Answer: the symptom can look similar, but TCP adds stream-level repair</summary>
+
    Watch the ribbon colours (green/amber/red = TF freshness) and the map. Some robots
-   should begin to freeze or jump as telemetry becomes stale.
+   should begin to freeze or jump as telemetry becomes stale, with the freshness getting deep in the red.
+
+   </details>
 
    <details>
    <summary>Why the topology is worth this much attention</summary>
@@ -118,7 +140,7 @@ subject of this exercise is **TCP under loss**, not Zenoh.
    robot's local `pilot` -> `cmd_vel` -> `twist_mux` -> controller path does not depend
    on it. Switch the sessions to `client` mode pointed at the remote router - the optional
    exercise below shows how - and that local control path is relayed through `wifi-ap`.
-   Under `ap bad`, the controller can then miss its `cmd_vel_timeout: 0.5` deadline and
+   Under `netem bad`, the controller can then miss its `cmd_vel_timeout: 0.5` deadline and
    stop the robot for a real control-path reason, rather than merely showing stale state.
 
    That distinction matters for Lab 4: benchmarking a client-of-a-remote-router setup
@@ -130,6 +152,10 @@ subject of this exercise is **TCP under loss**, not Zenoh.
    packets or building a backlog. Then check
    `/fleet_map/state_freshness` from the `observer` container. First confirm that a new
    ROS CLI process joins the same routed Zenoh session as the running operator tools:
+
+   **Question: what evidence would separate a host problem from a transport problem?**
+   Predict what Apps CPU, the AP queue/drop charts, and `state_freshness_ms` should show
+   if the robots keep computing normally but their telemetry is delayed on the AP path.
 
    ```bash
    docker exec observer bash -lc 'echo "$ZENOH_SESSION_CONFIG_URI"'
@@ -147,17 +173,28 @@ subject of this exercise is **TCP under loss**, not Zenoh.
    docker exec observer bash -lc 'source /opt/ros/jazzy/setup.bash && timeout 20 ros2 topic hz /fleet_map/state_freshness'
    ```
 
+   <details>
+   <summary>Answer: steady CPU plus AP pressure and older state indicates transport trouble</summary>
+
    Each `status` entry reports a robot's `state_freshness_ms` and its health. Compare
    those values and the received rate under `good` and `bad`. These signals show the
    conditions for a transport failure; they do not prove a TCP retransmission by
    themselves.
 
-5. Confirm the TCP hypothesis on the wire, using the packet workflow from Lab 2. Run
-   this once under `good` and again while `bad` is active. Capture on the `observer`,
-   which is a TCP endpoint, so each segment is seen once; running this on the forwarding
-   `wifi-ap` with `-i any` would see forwarded packets twice and count them as
-   retransmissions. It filters to the Zenoh connection and prints only the retransmissions
-   TShark detects:
+   </details>
+
+5. **Measure TCP retransmissions for the first time in Lab 3.** Exercise 3 introduced
+   the live TShark workflow for measuring packets delivered toward the observer; this
+   step applies the Zenoh TCP filter and Lab 2's retransmission display filter to test
+   the transport hypothesis directly. Run it once under `good` and again while `bad` is
+   active. Capture on the `observer`, which is a TCP endpoint, so each segment is seen
+   once; running this on the forwarding `wifi-ap` with `-i any` would see forwarded
+   packets twice and count them as retransmissions:
+
+   **Question: what do you predict will change between `good` and `bad`?** Expect a small
+   baseline under `good`, because it still has loss, and more retransmissions or tighter
+   clusters under `bad`. What would clustered retransmissions imply for later bytes in the
+   same TCP stream and for ROS topics sharing that stream?
 
    ```bash
    docker exec observer bash -lc '
@@ -168,6 +205,9 @@ subject of this exercise is **TCP under loss**, not Zenoh.
    '
    ```
 
+   <details>
+   <summary>Answer: loss creates TCP repair and head-of-line blocking</summary>
+
    This is a Lab 2 display filter with a Lab 3-specific output format. Each printed
    row has already matched `tcp.analysis.retransmission`; it is not every Zenoh TCP
    packet. The five columns are:
@@ -175,16 +215,17 @@ subject of this exercise is **TCP under loss**, not Zenoh.
    | Column | Meaning |
    |---|---|
    | `frame.time_relative` | seconds since this capture started |
-   | `ip.src`, `ip.dst` | a robot (`172.40.<n>.10`) and the observer (`172.40.100.10`), the two ends of the direct Zenoh TCP session |
+   | `ip.src`, `ip.dst` | the two ends of the TCP session visible at the observer; in this routed topology that is normally `wifi-ap` (`172.40.100.2`) and the observer (`172.40.100.10`) |
    | `tcp.seq` | first byte sequence number of the retransmitted TCP segment |
    | `tcp.len` | TCP payload bytes in that segment; `1448` is a near-MTU-sized data segment, while small values can be control or small application messages |
 
-   For example, `172.40.2.10  172.40.100.10  11131  1448` is a near-MTU scan segment from
-   `mock-robot-2` to the observer being retransmitted. Do not try to infer a ROS
-   topic from the sequence number or compare sequence numbers between clients: each
-   client has its own TCP byte stream. Compare the two 20-second captures instead.
-   `good` still applies 0.1% bursty loss, so it can show a small retransmission
-   baseline. A marked increase or clustering of retransmissions under `bad` is evidence
+   Do not try to infer a ROS topic from the sequence number or payload length. The
+   observer sees its TCP session with `wifi-ap`; Zenoh multiplexes routed traffic from
+   the robots over that session, so a retransmitted segment cannot be attributed to a
+   particular robot or topic from these fields. Compare the two 20-second captures
+   instead. `good` still applies 0.1% bursty loss, so it may show a small retransmission
+   baseline or zero events in a short sample. A marked increase or clustering of
+   retransmissions under `bad` is evidence
    of transport repair under the impaired medium. At the end of each run, TShark also
    prints its captured-packet total. That total counts every TCP/7447 packet admitted by
    the capture filter, not just the retransmission rows displayed above; record it as
@@ -196,9 +237,16 @@ subject of this exercise is **TCP under loss**, not Zenoh.
    explanation: TCP holds later bytes behind a missing segment, so several ROS topic
    streams carried by that TCP session can appear to stall together.
 
+   </details>
+
 6. Retry the fix that worked under DDS, and watch it fail. In Exercise 3, making the
    sensor class best effort cut scan age by roughly six times. Run the same comparison
-   here, while `ap bad` is applied:
+   here, while `netem bad` is applied:
+
+   **Question: why might the same ROS QoS change behave differently here?** Predict the
+   rate, age, and p95 pattern for `reliable` versus `best_effort`. Then explain what
+   best effort changed in Exercise 3: did it stop per-sample repair, or did it change
+   the underlying transport? What can it change when the session still uses TCP?
 
    ```bash
    docker exec -it observer bash -c 'source /opt/ros/jazzy/setup.bash && python3 /scripts/lab3/fleet_inspector.py --robots robot_1,robot_2,robot_3 --sensors scan --qos reliable'
@@ -212,6 +260,9 @@ subject of this exercise is **TCP under loss**, not Zenoh.
    reliable      10.0 Hz / age  385 ms      2.5 Hz / age 3561 ms      9.7 Hz / age 2100 ms
    best_effort    5.2 Hz / age 1655 ms      6.2 Hz / age 3359 ms      9.0 Hz / age 2377 ms
    ```
+
+   <details>
+   <summary>Answer: ROS best effort cannot override TCP byte-stream repair</summary>
 
    Best effort does not rescue it, and the run-to-run spread is large. `rmw_zenoh`'s
    design doc says why:
@@ -243,6 +294,8 @@ subject of this exercise is **TCP under loss**, not Zenoh.
    recognise the shape of this failure - rates holding while age climbs, and every topic
    on one connection degrading together - you will recognise it in all of them.
 
+   </details>
+
 7. Heal it:
 
    ```bash
@@ -250,11 +303,13 @@ subject of this exercise is **TCP under loss**, not Zenoh.
    ```
 
 8. Compare this run with your Cyclone DDS notes from Exercise 3 as a **transport**
-   comparison: the same fleet, the same impairment, UDP versus TCP. Which symptom and
-   which monitoring signals changed? Where did best effort help, and where was it unable
-   to? Do not produce a ranking of middlewares: one interactive incident is useful for
-   diagnosis, but it is not a controlled benchmark, and you have changed the transport
-   rather than isolating the RMW.
+   comparison: the same fleet, the same impairment, UDP versus TCP.
+
+   **Question: can you summarize the comparison in four sentences?** State the changed
+   symptom, the transport signals that changed, the hypothesis that explains them, and
+   what best effort could and could not change. Do not produce a ranking of middlewares:
+   one interactive incident is useful for diagnosis, but it is not a controlled
+   benchmark, and you have changed the transport rather than isolating the RMW.
 
 ## Discussion: a transport-level alternative
 
@@ -289,13 +344,13 @@ is validated end to end.
    as a design exercise and say what evidence you would demand before shipping it.
 
 3. **Try the wrong deployment on purpose.** Change `connect` in
-   [`mock-robot-1.json5`](../fixtures/routed_zenoh_ap_hub/mock-robot-1.json5) to
+   [`lab3-stress-testing/fixtures/routed_zenoh_ap_hub/mock-robot-1.json5`](../fixtures/routed_zenoh_ap_hub/mock-robot-1.json5) to
    `tcp/wifi-ap:7447` with `mode: "client"`, recreate the fleet with
    `scripts/workshop -t routed up 3 zenoh --rmw-directory lab3-stress-testing/fixtures/routed_zenoh_ap_hub`,
-   and apply `ap bad`. Watch
+   and apply `netem bad`. Watch
    the robot stop driving rather than merely appearing stale, and confirm it with
    `ros2 topic hz /robot_1/diff_drive_controller/cmd_vel` against `cmd_vel_timeout: 0.5`.
-   How hard it stalls depends on your machine: `ap bad` may only make it stutter, so apply
+   How hard it stalls depends on your machine: `netem bad` may only make it stutter, so apply
    `ap reorder` (or `ap severe`) for a decisive, continuous stop.
    Then put it back. This is the single most valuable thing to be able to recognise in a
    real deployment. Use `timeout 20 ros2 topic hz
@@ -333,7 +388,7 @@ scripts/workshop -t routed netem good
 ```
 
 Wait for the robot bringup, repeat Step 4's first three checks, and only then apply
-`ap bad` again. Do not set `ZENOH_SESSION_CONFIG_URI` manually for one command: that
+`netem bad` again. Do not set `ZENOH_SESSION_CONFIG_URI` manually for one command: that
 masks a topology that needs to be recreated and leaves the other CLI commands inconsistent.
 
 Tear down with `scripts/workshop -t routed down`. This is the last in-workshop

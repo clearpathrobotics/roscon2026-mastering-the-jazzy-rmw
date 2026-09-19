@@ -20,7 +20,7 @@ scripts/workshop run \
 ```
 
 If your bag's topic names don't match the `sensor`/`control`/`state` regexes in
-[`benchmark.yaml`](../scripts/benchmark.yaml), add your own patterns under
+[`lab4-benchmarking-and-decision/scripts/benchmark.yaml`](../scripts/benchmark.yaml), add your own patterns under
 `topic_classes.*.match` so `class_probe.py` actually buckets them.
 
 ## Score the manual criteria for real

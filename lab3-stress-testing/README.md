@@ -232,6 +232,14 @@ origin, so the compositor places those local coordinate systems on a determinist
 4 m grid before fitting the combined image; the relative placement is illustrative,
 while each robot's motion and freeze are real.
 
+In the mock robot stack, `robot_localization`'s `ekf_node` publishes that moving
+`/<robot>/odom -> /<robot>/base_link` transform. `robot_state_publisher` publishes the
+robot model's fixed-link transforms on `/tf_static`. The launch files deliberately keep
+`/tf` and `/tf_static` global rather than putting them under each robot namespace, so a
+subscriber to `/tf` can receive transforms from every reachable robot. That is why a
+`ros2 topic hz /tf` command inside one robot is an aggregate observation, not a clean
+measurement of that robot's publisher.
+
 At every 10 Hz render, the `observer` container calculates
 $\text{state freshness} = \text{observer time} - \text{TF header stamp}$. It writes the
 result in milliseconds into the top ribbon and publishes the same per-robot values as
