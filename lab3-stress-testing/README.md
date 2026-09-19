@@ -37,7 +37,7 @@ Shaping is optional for the clean reference (`clear`), but the impaired profiles
 `sch_netem`, `sch_htb`, `ifb`, and `act_mirred`. If a module cannot be loaded, the
 topology can still run, but its impairment results are not meaningful.
 
-If `preflight.sh` reports a missing module, use the clean reference (`clear`) or a
+If `scripts/workshop preflight` reports a missing module, use the clean reference (`clear`) or a
 recorded capture; the impairment exercises will not be meaningful.
 
 Lab 3 uses two deployment phases, not two competing impaired topologies:
