@@ -529,8 +529,10 @@ EOF
 # root. Creating the dir here as the invoking user keeps it writable without sudo. If it
 # is already owned by another user (a prior root-created dir), warn with the exact fix.
 ensure_capture_dir() {
-    local dir="$1"
+    local dir="$1" current_mode
     mkdir -p "$dir" 2>/dev/null
+    current_mode="$(stat -c '%a' "$dir" 2>/dev/null)"
+    [[ "$current_mode" == 1777 ]] && return 0
     chmod 1777 "$dir" 2>/dev/null || warn "cannot set 1777 on $dir; if captures fail run: sudo chmod 1777 $dir"
 }
 

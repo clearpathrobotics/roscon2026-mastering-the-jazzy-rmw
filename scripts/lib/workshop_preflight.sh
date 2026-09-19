@@ -113,6 +113,18 @@ _preflight_capture_dirs() {
     return 0
 }
 
+# Compose reads RMW_IMPLEMENTATION from the calling shell before docker/.env, so an export
+# left in ~/.bashrc silently changes the RMW of every container started without an explicit one.
+_preflight_host_rmw() {
+    local shell_rmw="${RMW_IMPLEMENTATION:-}" env_file_rmw
+    [[ -n "$shell_rmw" ]] || return 0
+    env_file_rmw="$(sed -n 's/^RMW_IMPLEMENTATION=//p' "$DOCKER_ROOT/.env" 2>/dev/null)"
+    env_file_rmw="${env_file_rmw:-rmw_cyclonedds_cpp}"
+    [[ "$shell_rmw" == "$env_file_rmw" ]] && return 0
+    warn "this shell exports RMW_IMPLEMENTATION=$shell_rmw, which overrides docker/.env ($env_file_rmw) - run: unset RMW_IMPLEMENTATION"
+    return 0
+}
+
 workshop_preflight() {
     local topology="$1" rc=0
 
@@ -135,6 +147,7 @@ workshop_preflight() {
     _preflight_ports "$topology" || rc=1
     _preflight_images "$topology" || rc=1
     _preflight_capture_dirs
+    _preflight_host_rmw
     if [[ "$topology" == routed ]]; then
         _preflight_routed_modules || rc=1
     fi

@@ -68,7 +68,14 @@ docker exec "$B" bash -c "
         -p 0 -s 1
 " 2>&1 | tee "$LOG" > /dev/null
 subscriber_status=$?
-[[ "$subscriber_status" -eq 0 ]] || exit "$subscriber_status"
+
+# rmw_zenoh can abort in its exit handler after perf_test has finished
+# measuring, so a non-zero exit only fails the run when the run was cut short.
+measurement_completed() { grep -q "Maximum runtime reached" "$LOG"; }
+if [[ "$subscriber_status" -ne 0 ]]; then
+    measurement_completed || exit "$subscriber_status"
+    echo "perf_test exited $subscriber_status after completing its run, so the measurement is kept" >&2
+fi
 
 # Wait for the backgrounded publisher to exit on its own max-runtime.
 sleep 4
