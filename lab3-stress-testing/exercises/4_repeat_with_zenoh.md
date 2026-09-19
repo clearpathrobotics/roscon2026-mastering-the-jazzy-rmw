@@ -175,12 +175,12 @@ subject of this exercise is **TCP under loss**, not Zenoh.
    | Column | Meaning |
    |---|---|
    | `frame.time_relative` | seconds since this capture started |
-   | `ip.src`, `ip.dst` | a robot or observer (`172.40.<n>.10`) and its local AP address (`172.40.<n>.2`) |
+   | `ip.src`, `ip.dst` | a robot (`172.40.<n>.10`) and the observer (`172.40.100.10`), the two ends of the direct Zenoh TCP session |
    | `tcp.seq` | first byte sequence number of the retransmitted TCP segment |
    | `tcp.len` | TCP payload bytes in that segment; `1448` is a near-MTU-sized data segment, while small values can be control or small application messages |
 
-   For example, `172.40.2.10  172.40.2.2  69505  1448` is a near-MTU segment being
-   retransmitted from `mock-robot-2` toward its AP interface. Do not try to infer a ROS
+   For example, `172.40.2.10  172.40.100.10  11131  1448` is a near-MTU scan segment from
+   `mock-robot-2` to the observer being retransmitted. Do not try to infer a ROS
    topic from the sequence number or compare sequence numbers between clients: each
    client has its own TCP byte stream. Compare the two 20-second captures instead.
    `good` still applies 0.1% bursty loss, so it can show a small retransmission

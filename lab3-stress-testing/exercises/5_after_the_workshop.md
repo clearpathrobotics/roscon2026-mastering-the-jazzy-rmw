@@ -7,7 +7,7 @@ same stack.
 ## Push the scale further
 
 Start with a clean, shaped baseline, then recreate the fleet at progressively larger
-sizes (for example 25, 30, 40, and 50):
+sizes (for example 10, 16, 20, and 25 - 25 is the harness maximum):
 
 ```bash
 cd "$(git rev-parse --show-toplevel)"
