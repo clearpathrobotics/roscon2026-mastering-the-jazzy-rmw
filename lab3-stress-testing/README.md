@@ -8,6 +8,7 @@ Lab 4 independently performs the repeatable experiments and RMW decision. This R
 covers the setup, the topology, and the reference material behind the
 [Exercises](#exercises) - it does not repeat their steps.
 
+<a id="before-you-begin"></a>
 <details>
 <summary><b>Setup:</b> bring up the fleet and verify shaping modules</summary>
 

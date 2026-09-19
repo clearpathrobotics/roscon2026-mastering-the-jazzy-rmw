@@ -48,7 +48,7 @@ subject of this exercise is **TCP under loss**, not Zenoh.
 
    (Opening plain `http://localhost:8080` does not select the data source - use the
    full URL. If the layout does not show the operator map, see the [Lab 3
-   README](../README.md#live-fleet-reference) for how to import it.)
+   README](../README.md#how-the-live-fleet-works) for how to import it.)
 
    <details>
    <summary>Why the RMW cannot be hot-swapped</summary>
