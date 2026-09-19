@@ -154,6 +154,13 @@ if [[ "$action" == "status" ]]; then
         rate="$(in_ap tc class show dev "$IFB" 2>/dev/null | grep -m1 'class htb' | grep -oE 'rate [0-9A-Za-z]+' || true)"
         # drop tc's 'qdisc netem NN: parent N:N limit NNNN' prefix; keep the shaping spec
         printf "  %s | %s\n" "${rate:-rate ?}" "$(sed -E 's/^.*limit [0-9]+ //' <<<"$netem_line")"
+        # cumulative counters (first Sent/backlog = the shared htb budget), so "is it
+        # dropping?" is answered here instead of needing `netem sample` or Netdata.
+        counters="$(in_ap tc -s qdisc show dev "$IFB" 2>/dev/null | awk '
+            /^ Sent/    && !seen_sent    { pkts=$4; dropped=$7; gsub(/,/,"",dropped); seen_sent=1 }
+            /^ backlog/ && !seen_backlog { backlog=$3; sub(/p$/,"",backlog); seen_backlog=1 }
+            END { printf "sent %d pkts, dropped %d, backlog %d pkts", pkts, dropped, backlog }')"
+        printf "  %s\n" "$counters"
     else
         echo "  (no shaping applied)"
     fi

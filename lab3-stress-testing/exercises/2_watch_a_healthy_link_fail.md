@@ -191,7 +191,7 @@ report `Subscription count: 0`.
 
 **Lab 3 Fleet Dropped Packets stays at zero.** Expected for this routed exercise.
 The AP qdisc, not the robot NIC, is dropping packets. Search for **Lab 3 AP Qdisc
-Drops** and use `scripts/workshop -t routed netem list` to inspect the same
+Drops** and use `scripts/workshop -t routed netem` to inspect the same
 cumulative `tc` counter.
 
 Leave the routed fleet running. [Exercise 3](3_the_shared_medium.md) uses it to trace

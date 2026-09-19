@@ -66,7 +66,7 @@ Build an evidence chain, in this order: **symptom -> monitoring signal -> hypoth
    docker exec observer bash -c 'source /opt/ros/jazzy/setup.bash && ros2 topic list --no-daemon' | grep -Fx /fleet_map/state_freshness
    docker exec observer bash -c 'source /opt/ros/jazzy/setup.bash && timeout 20 ros2 topic hz /fleet_map/state_freshness'
    docker exec observer bash -c 'source /opt/ros/jazzy/setup.bash && timeout 10 ros2 topic echo --once /fleet_map/state_freshness'
-   scripts/workshop -t routed netem list
+   scripts/workshop -t routed netem
    ```
 
    If the first command prints nothing, just run it again: `--no-daemon` starts a fresh
@@ -245,7 +245,7 @@ Build an evidence chain, in this order: **symptom -> monitoring signal -> hypoth
    then start the inspector:
 
    ```bash
-   docker exec -it observer bash -c 'source /opt/ros/jazzy/setup.bash && python3 /scripts/lab3/fleet_inspector.py --robots robot_1,robot_2,robot_3 --sensors both --max-camera 1'
+   docker exec -it observer bash -c 'source /opt/ros/jazzy/setup.bash && python3 /scripts/lab3/fleet_inspector.py --robots robot_1,robot_2,robot_3 --sensors both --max-camera 1 --qos best_effort'
    ```
 
    While it runs, confirm the camera subscription exists:
@@ -306,8 +306,8 @@ depth.
 
 ## When it does not work
 
-**AP charts do not change after `ap bad`.** Check the profile and raw qdisc state with
-`scripts/workshop -t routed netem list`. If the system lacks shaping modules, preflight reports it and
+**AP charts do not change after `ap bad`.** Check the applied profile and its drop counter with
+`scripts/workshop -t routed netem`. If the system lacks shaping modules, preflight reports it and
 the impairment result is not meaningful.
 
 **`ros2 topic hz` reports no data.** First verify the source is alive from `mock-robot-1`:
