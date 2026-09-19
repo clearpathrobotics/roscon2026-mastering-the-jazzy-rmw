@@ -57,10 +57,9 @@ esac
 # --rmw-directory (scripts/workshop up): use a pre-built config directory for the
 # selected RMW instead of generating it - the caller's fixture, not ours. Only the
 # selected RMW's directory is affected; the other two still generate normally
-# (only the RMW named by RMW_IMPLEMENTATION is ever active at runtime). Only the
-# topology/RMW combinations an exercise actually needs are wired up below
-# (flat+cyclone for Lab 3 Ex1's mixed-config fleet, routed+zenoh for Ex4's
-# gossip/multicast A/B) - extend the per-topology generators as new needs arise.
+# (only the RMW named by RMW_IMPLEMENTATION is ever active at runtime). All nine
+# topology/RMW combinations are wired below: each topology (star, flat, routed)
+# accepts an override for any of the three RMWs (cyclone, fast, zenoh).
 RMW_OVERRIDE_DIR="${RMW_OVERRIDE_DIR:-}"
 if [[ -n "$RMW_OVERRIDE_DIR" ]]; then
     RMW_OVERRIDE_DIR="$(cd "$RMW_OVERRIDE_DIR" 2>/dev/null && pwd)" || {
