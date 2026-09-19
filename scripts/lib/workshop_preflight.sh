@@ -101,6 +101,18 @@ _preflight_routed_modules() {
     return "$rc"
 }
 
+# lab2 captures + lab4 bags/captures must be writable by the container that captures into
+# them; a dir left root-owned by an earlier run blocks that and the harness cannot chmod it
+# without sudo. Warn (don't block) with the exact fix.
+_preflight_capture_dirs() {
+    local d
+    for d in "$REPO_ROOT/lab2-on-the-wire/captures" "$DOCKER_ROOT/bags" "$DOCKER_ROOT/captures"; do
+        [[ -d "$d" && ! -O "$d" && ! -w "$d" ]] && \
+            warn "capture dir $d is owned by another user; captures/bags may fail - run: sudo chmod 1777 $d"
+    done
+    return 0
+}
+
 workshop_preflight() {
     local topology="$1" rc=0
 
@@ -122,6 +134,7 @@ workshop_preflight() {
     fi
     _preflight_ports "$topology" || rc=1
     _preflight_images "$topology" || rc=1
+    _preflight_capture_dirs
     if [[ "$topology" == routed ]]; then
         _preflight_routed_modules || rc=1
     fi

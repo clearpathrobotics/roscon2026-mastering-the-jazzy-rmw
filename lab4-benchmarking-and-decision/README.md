@@ -84,6 +84,11 @@ templates against it. The generator creates one topic per class -
 `/camera/image_raw` sensor, `/cmd_vel` control, and `/tf` state - with rates and sizes
 documented in `scripts/gen_bag.py`. Either way, anything under `docker/bags/` is picked
 up by `--bag`.
+
+If `gen-bag` or a sweep fails with a permission error writing to `docker/bags` or
+`docker/captures`, an earlier run left the directory owned by another user. The harness
+keeps these writable automatically; if one is already root-owned, fix it once with
+`sudo chmod 1777 docker/bags docker/captures`.
 </details>
 
 <details>

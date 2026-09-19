@@ -474,6 +474,7 @@ lab4_core_down() {
 }
 
 cmd_lab4_genbag() {
+    ensure_capture_dir "$DOCKER_ROOT/bags"
     bash "$LAB4_SCRIPTS/gen_bag.sh" "$@"
 }
 
@@ -492,6 +493,8 @@ cmd_lab4_run() {
     else
         info "Running host preflight before the Lab 4 sweep"
         bash "$DOCKER_ROOT/scripts/preflight.sh"
+        ensure_capture_dir "$DOCKER_ROOT/bags"
+        ensure_capture_dir "$DOCKER_ROOT/captures"
         lab4_core_up
     fi
 
@@ -518,6 +521,17 @@ The /lab2-captures directory is already mounted, so the file appears in webshark
 extra step, and it is yours to keep - 'observer capture clear' removes only the harness's
 own live_/stream_ captures.
 EOF
+}
+
+# Capture/bag dirs must be world-writable with the sticky bit (1777, like /tmp):
+# tshark/dumpcap drops privileges to write the pcap, so a user-owned 775 dir gives it
+# "Permission denied"; and compose would otherwise auto-create a missing bind mount as
+# root. Creating the dir here as the invoking user keeps it writable without sudo. If it
+# is already owned by another user (a prior root-created dir), warn with the exact fix.
+ensure_capture_dir() {
+    local dir="$1"
+    mkdir -p "$dir" 2>/dev/null
+    chmod 1777 "$dir" 2>/dev/null || warn "cannot set 1777 on $dir; if captures fail run: sudo chmod 1777 $dir"
 }
 
 # `observer capture start` parses the operator-facing flags on the host, then runs
@@ -557,6 +571,7 @@ observer_capture_start() {
         capture_guide "$topo"
         return 0
     fi
+    ensure_capture_dir "$REPO_ROOT/lab2-on-the-wire/captures"
     docker exec \
         -e HOST_UID="$(id -u)" -e HOST_GID="$(id -g)" \
         -e RETENTION="$files" -e LIVE_MAX_SECONDS="$autostop" -e LIVE_MAX_MB="$max_mb" \
