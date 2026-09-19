@@ -26,6 +26,8 @@ before you read a number.
 
 The fleet is idle and nobody is publishing. The link is saturated anyway.
 
+**What is filling the link, and where is it coming from?**
+
 Click **SPDP**, and note both numbers in `N of M displayed`. Then clear the filter and type:
 
 ```
@@ -52,6 +54,8 @@ sent. Guide 5.4.
 Three robots start together, and by the end of the capture the fleet is one robot. Nothing
 logged an error.
 
+**Which robots left the fleet, and when?**
+
 Click **SPDP** and read down the Time column. Packets are listed in capture order, so that
 is already time order.
 
@@ -70,6 +74,8 @@ present and no data is coming. Guide 5.2.
 
 A publisher is running and healthy. Its subscriber, on another machine, receives nothing.
 
+**If the publisher is healthy, where are its messages going?**
+
 Filter `rtps.param.topicName contains "fixture_localhost"`.
 
 <details style="border: 2px solid #333; padding: 5px">
@@ -86,6 +92,8 @@ busy capture is the signature. Guide 5.1.
 ## 4. `multicast-blocked`
 
 Two robots, configured identically. One is discovered, one is not.
+
+**The two robots are identical, so what is different about the one that vanished?**
 
 Filter `ip.dst == 239.255.0.1`, then narrow it to each sender in turn:
 
@@ -111,6 +119,8 @@ why this failure follows people into production. Guide 5.3.
 
 Two participants, both healthy, both talking. Neither can see the other.
 
+**If both are healthy and talking, what keeps them from matching?**
+
 Filter `udp.dstport == 17900 || udp.dstport == 26650`.
 
 <details style="border: 2px solid #333; padding: 5px">
@@ -130,6 +140,8 @@ this wire contributes 993 ACKNACKs that would otherwise mask it. Guide 5.2.
 Publisher and subscriber both exist. Both name the same topic. No data flows and neither
 side reports an error.
 
+**They agree on the topic name, so what don't they agree on?**
+
 Filter `rtps.param.topicName contains "fixture_qos"`.
 
 <details style="border: 2px solid #333; padding: 5px">
@@ -147,6 +159,8 @@ the CLI covers. Guide 5.7.
 ## 7. `reliable-vs-besteffort`
 
 One impairment, two camera topics, identical payload. One survives.
+
+**Same frames, same impairment, so what one setting saved the survivor?**
 
 Filter `rtps.param.topicName contains "fixture_img"` to find both topics. That shows they
 exist and nothing else, so ask what QoS they announced and what repair followed:
@@ -178,6 +192,8 @@ constrained network rather than an obvious win. Guide 5.8.
 Camera frames arrive at maybe 80% of the publish rate. The laser scan on the same link is
 untouched.
 
+**Why does the same loss gut the camera but leave the scan untouched?**
+
 Turn on **Reassembly** in the viewer, then click **Fragments**. That counts the RTPS side.
 For the IP side, ask how many fragments never completed:
 
@@ -203,6 +219,8 @@ it, which is exactly the contrast you measured live in
 A Zenoh fleet comes up and nothing discovers anything. Every RTPS filter you know returns
 zero, but so does every Zenoh filter.
 
+**If even the Zenoh filters are empty, which layer never came up?**
+
 Filter `tcp.port == 7999`.
 
 <details style="border: 2px solid #333; padding: 5px">
@@ -220,6 +238,8 @@ because the healthy fleet on this wire puts 15581 Zenoh frames on port 7447. Gui
 ## 10. `zenoh-router-killed`
 
 A working Zenoh fleet stops mid-run, then partly recovers.
+
+**What killed the fleet mid-run, and why did only part of it come back?**
 
 Filter `zenoh.body.close.reason` to find the moment it dies. Then drop a layer and count
 what the clients did about it:
