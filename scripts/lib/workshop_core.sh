@@ -650,7 +650,7 @@ cmd_lichtblick() {
             info "Bringing up the lichtblick container"
             compose_lichtblick up -d lichtblick
             local port="${LICHTBLICK_PORT:-8080}"
-            ok "Lichtblick on http://localhost:$port/?ds=foxglove-websocket&ds.url=ws://172.30.11.20:8765"
+            ok "Lichtblick on http://localhost:$port/?ds=foxglove-websocket&ds.url=ws://localhost:8765"
             info "The observer's Foxglove bridge must be running for Lichtblick to connect: workshop observer bridge" ;;
         down)
             info "Bringing the lichtblick container down"
