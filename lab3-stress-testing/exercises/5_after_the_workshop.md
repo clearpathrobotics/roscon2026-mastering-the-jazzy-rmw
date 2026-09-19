@@ -42,7 +42,7 @@ Note that `up 15 zenoh` (no `--rmw-directory`) is the **default** routed Zenoh c
 Exercise 4's hub-and-spoke fixture: here discovery gossip is on and the robot routers do
 not uplink to `wifi-ap` (the `observer` dials each robot router directly).
 
-Use `ap bad` only after recording the `degraded` behaviour. `zenoh-lowlat` is Lab 4's
+Use `netem bad` only after recording the `degraded` behaviour. `zenoh-lowlat` is Lab 4's
 second Zenoh candidate: the same `rmw_zenoh_cpp`, configured as a client of a dedicated
 router with Zenoh's low-latency transport (no batching or QoS multiplexing). A repeatable
 comparison between it and plain Zenoh belongs in Lab 4, where the same recorded workload
@@ -50,7 +50,7 @@ can be used for every candidate.
 
 ## Write your own AP profile
 
-Lab 3's shared-medium profiles are defined by [`ap_shape.sh`](../scripts/ap_shape.sh),
+Lab 3's shared-medium profiles are defined by [`lab3-stress-testing/scripts/ap_shape.sh`](../scripts/ap_shape.sh),
 not by Lab 4's benchmark YAML. Add a named profile there (for example, bursty loss or
 asymmetric delay) and apply it with `scripts/workshop -t routed netem <profile>` to the routed fleet.
 Does your prediction from Lab 1 hold?

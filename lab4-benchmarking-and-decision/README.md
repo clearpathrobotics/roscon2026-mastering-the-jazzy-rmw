@@ -78,9 +78,10 @@ graph TB
 > drop one in locally. Only the *results* (`comparison.md`, `pugh.md`, etc.) are meant
 > to be kept.
 
-[Exercise 1](exercises/1_same_traffic_different_rmw.md) fetches the workshop bag (or
-generates the synthetic fallback if the release asset is unavailable) and runs both
-templates against it. The generator creates one topic per class -
+[Exercise 1](exercises/1_same_traffic_different_rmw.md) uses the supplied recorded
+benchmark reports in [`exercises/benchmarks/`](exercises/benchmarks/). The benchmark
+directories contain the clean Template A and Template B results used by Exercises 1–2,
+plus the stressed Template B results used by Exercise 3. The generator creates one topic per class -
 `/camera/image_raw` sensor, `/cmd_vel` control, and `/tf` state - with rates and sizes
 documented in `scripts/gen_bag.py`. Either way, anything under `docker/bags/` is picked
 up by `--bag`.
@@ -94,10 +95,12 @@ keeps these writable automatically; if one is already root-owned, fix it once wi
 <details>
 <summary><b>How the comparison works</b></summary>
 
-The mandatory golden path is three RMWs, the workshop `benchmark` bag, 30 seconds,
-and three Template B replicas. Run Template A S0 once, then Template B S0 and S2 with
-those same RMWs and settings. S1, combined `constrained`, larger fleets, and extra RMW
-variants are optional extensions.
+The mandatory golden path is analysis of the supplied three-RMW reports: clean Template
+A, clean Template B `S0`, and stressed Template B. The reports use the same declared
+workload and settings within each comparison. There is no required live sweep during the
+workshop. If time allows, Exercise 4 generates and runs a new synthetic bag as a
+standalone experiment. Live reruns, `constrained`, larger fleets, and extra RMW variants
+are optional extensions.
 
 Lab 4 supports two complementary templates:
 
@@ -218,23 +221,21 @@ measurements are never silently averaged into one recommendation.
 
 ### [1. Controlled workload, different RMW](exercises/1_same_traffic_different_rmw.md)
 
-Fetch the workshop bag, run Template A and clean Template B baselines, then retain their
-run metadata for the controlled stress comparison.
+Analyze the supplied clean Template A and Template B benchmark reports.
 
 ### [2. Read the matrix](exercises/2_read_the_matrix.md)
 
-Learn to read `pugh.md`: which criteria are measured, which are manual, and why Template
-A and Template B assign them different weights.
+Learn to read the supplied `pugh.md` files: which criteria are measured, which are
+manual, and why Template A and Template B assign them different weights.
 
 ### [3. Stressed vs. clean](exercises/3_stressed_vs_clean.md)
 
-Run controlled clean and stressed Template B cells with the same MCAP. Does the
-recommendation change when only the network condition changes?
+Compare the supplied clean and stressed Template B reports. Does the recommendation
+change when only the network condition changes?
 
 ### [4. Generate your own data](exercises/4_generate_your_own_data.md) *(optional)*
 
-See where the workshop's benchmark bag came from, or make one of your own if you don't
-have a representative MCAP yet.
+Generate and run your own synthetic bag as a standalone experiment if time allows.
 
 ### [5. After the workshop](exercises/5_after_the_workshop.md)
 

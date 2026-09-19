@@ -1,0 +1,20 @@
+{
+  "sweep_id": "20260919_121053_571773959_896013_sweep",
+  "templates": [
+    "B"
+  ],
+  "rmws": [
+    "cyclone",
+    "fastdds",
+    "zenoh"
+  ],
+  "scenarios_override": [
+    "S0"
+  ],
+  "scale": 3,
+  "duration": 30,
+  "rate": 1000,
+  "msg": "Array1k",
+  "bag": "/home/administrator/roscon/public/roscon2026-mastering-the-jazzy-rmw/docker/bags/synth",
+  "started": "2026-09-19T16:10:53.596882+00:00"
+}
