@@ -142,8 +142,8 @@ assessments in `manual_scores.yaml` and rerun the scorer as shown in
 **Template A** (`Local Robot / Single System`) weighs `cpu_overhead` and `ease_config`
 highest. In its minimal two-container baseline, the RMW's resource cost and configuration
 effort are the main differentiators because no impairment is applied. **Template B**
-(`Distributed Robot + Fleet Manager`) weighs `reliability`, `loss_jitter_behaviour`, and
-`discovery_robust` highest: once the system is distributed, behaviour when a link degrades
+(`Distributed Robot + Fleet Manager`) weighs `reliability`, `loss_jitter_behaviour`,
+`latency_p99`, and `data_freshness` highest: once the system is distributed, behaviour when a link degrades
 dominates whether it stays usable.
 
 The outcome is not one universal RMW winner. First, reject a suppressed ranking: it has

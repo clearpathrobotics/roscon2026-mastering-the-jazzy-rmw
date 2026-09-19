@@ -13,7 +13,7 @@ A values directly with Template B values; they use different workloads and metri
 
 ## Steps
 
-Run the commands from the repository's `docker/` directory. From any directory inside
+Run the commands from any directory inside
 the repository:
 
 1. Fetch the workshop benchmark bag:

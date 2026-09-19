@@ -8,7 +8,7 @@ use a recording from your own deployment.
 
 ## Steps
 
-Run the commands from the repository's `docker/` directory. From any directory inside
+Run the commands from any directory inside
 the repository:
 
 1. Generate a small synthetic bag with one topic per topic class

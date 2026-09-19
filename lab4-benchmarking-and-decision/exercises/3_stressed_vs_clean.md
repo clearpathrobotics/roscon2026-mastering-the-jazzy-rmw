@@ -7,7 +7,7 @@ observations are useful context, but are not a prerequisite or benchmark input.
 
 ## Steps
 
-Run the commands from the repository's `docker/` directory. From any directory inside
+Run the commands from any directory inside
 the repository:
 
 1. Run the same supplied MCAP under two fixed bridge conditions. `S0` is the clean
