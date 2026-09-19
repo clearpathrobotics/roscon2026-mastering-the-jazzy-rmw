@@ -224,12 +224,15 @@ capture_stop() {
 
 capture_bounce() {
     local label; label="$(capture_rmw_label)" || return 1
-    local before after
-    before="$(capture_current_file "$label")"
-    if [[ -z "$before" ]]; then
+    # Gate on a LIVE tshark, not just a pcap on disk: a leftover pcap from an
+    # earlier run would otherwise fool this into "bouncing" into no open capture.
+    local pcaps="$CAPTURES/live_${label}_*.pcap $CAPTURES/stream_${label}.pcap"
+    if ! tshark_capturing "$pcaps"; then
         echo "run_observer: no active capture to bounce - start one first" >&2
         return 1
     fi
+    local before after
+    before="$(capture_current_file "$label")"
     capture_retrigger
     after="$(capture_current_file "$label")"
     echo "run_observer: discovery re-triggered; click Refresh in webshark, then open:"
