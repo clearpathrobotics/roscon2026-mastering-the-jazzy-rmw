@@ -277,7 +277,10 @@ cmd_netem() {
 
     _check_topo "$topology" || return 2
 
-    if [[ -z "$action" ]]; then
+    # `netem status` is an explicit alias for the bare status view, so it reads the
+    # same on every topology (routed's ap_shape already accepts `status`; flat's
+    # profile engine would otherwise reject it as an unknown profile).
+    if [[ -z "$action" || "$action" == status ]]; then
         netem_state "$topology" || rc=1
         return "$rc"
     fi
