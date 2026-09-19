@@ -43,6 +43,9 @@ stack using the [Lab 3 setup](../README.md#before-you-begin).
 3. Watch **RTPS Discovery Multicast TX** and **Default-Group Discovery Multicast TX**
    before scaling. These are discovery-control-plane signals, not a throughput meter:
    participants emit a burst when they join and then settle to a lower periodic rate.
+   That join burst happened during bring-up - the collector records through the startup
+   hold - and Netdata keeps it in the chart history, so scroll the Default-Group chart
+   back a little if it has already settled by the time you open the dashboard.
    The named hub-and-spoke nodes should remain at or near zero. Zenoh uses a different
    discovery mechanism, so it need not emit RTPS multicast traffic.
 

@@ -193,12 +193,12 @@ Build an evidence chain, in this order: **symptom -> monitoring signal -> hypoth
           /robot_1/scan:
             publisher:
               reliability: best_effort
-         /robot_2/scan:
+          /robot_2/scan:
             publisher:
-               reliability: best_effort
-         /robot_3/scan:
+              reliability: best_effort
+          /robot_3/scan:
             publisher:
-               reliability: best_effort
+              reliability: best_effort
     ```
 
     QoS binds when the publisher is created, so the robots must be recreated. Editing a
