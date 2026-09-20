@@ -738,3 +738,21 @@ cmd_netdata() {
         *) fail "usage: workshop netdata <up|down>"; return 2 ;;
     esac
 }
+
+# The four published workshop images share one registry path and differ only by
+# tag; these mirror the image refs in the compose files.
+WORKSHOP_IMAGE_REPO="ghcr.io/clearpathrobotics/roscon2026-mastering-the-jazzy-rmw"
+WORKSHOP_IMAGE_TAGS=(ubuntu-headless-latest webshark-latest netdata-latest lichtblick-latest)
+
+cmd_pull() {
+    [[ $# -eq 0 ]] || { fail "usage: workshop pull (takes no arguments)"; return 2; }
+    local tag
+    for tag in "${WORKSHOP_IMAGE_TAGS[@]}"; do
+        info "Pulling $tag"
+        docker pull "$WORKSHOP_IMAGE_REPO:$tag" || {
+            fail "could not pull $tag (check your network connection and try again)"
+            return 1
+        }
+    done
+    ok "all four workshop images are up to date"
+}
