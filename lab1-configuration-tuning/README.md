@@ -11,34 +11,6 @@ We wil begin from stock RMW defaults, then watch a real robot graph appear in an
 view and see how `RMW_IMPLEMENTATION` and the per-vendor configuration files change
 discovery and transport across a small fleet.
 
-## Before you begin
-
-Every command in this lab goes through one script: [`scripts/workshop`](../scripts/workshop).
-Run it from the repository root:
-
-```bash
-scripts/workshop up                  # star: observer + 3 mock robots (default RMW: cyclone)
-scripts/workshop observer bridge     # start the observer's Foxglove bridge on :8765
-scripts/workshop lichtblick up       # bring up the Lichtblick web UI on :8080
-```
-
-Allow a few seconds for the robots to finish launching, then open Lichtblick pre-connected
-to the observer's Foxglove bridge:
-
-```
-http://localhost:8080/?ds=foxglove-websocket&ds.url=ws://localhost:8765
-```
-
-Opening plain `http://localhost:8080` does **not** select the data source — use the full
-URL above.
-
-When you are done, tear everything down:
-
-```bash
-scripts/workshop lichtblick down
-scripts/workshop down
-```
-
 ## Topology
 
 `scripts/workshop` can bring up three topologies, selected with `-t`. They share the same
@@ -52,7 +24,7 @@ scripts/workshop -t routed up  # routed (default N=15)
 ```
 
 In every topology, Lichtblick runs in your browser and connects to the observer's Foxglove
-bridge on `:8765`. The observer is the single vantage that sees the whole fleet.
+bridge on `:8765`. The observer is the container that sees the whole fleet.
 
 
 ### Flat
@@ -222,7 +194,7 @@ recreating the fleet. The observer can be pointed at a different config independ
 |---|---|
 | `--model a300\|r100\|j100` | per-robot model; a single value applies to all, a list cycles across robots 1..N |
 | `--build` | build the editable workspace in-container from `mock_robot_ws/src` (before the image exists) |
-| `-t flat` | flat single-bridge topology (all robots + observer share one bus) — used in Exercise 3 |
+| `-t flat` | flat single-bridge topology (all robots + observer share one bus) — used in Exercises 1–4 |
 
 ## Exercises
 
@@ -231,25 +203,34 @@ recreating the fleet. The observer can be pointed at a different config independ
 Bring up a single mock robot behind the observer, start the bridge and Lichtblick, and find
 the robot's topics and TF tree in the operator view.
 
-### [2. Meet the observer](exercises/2_meet_the_observer.md)
+### [2. Inspect the robot and its QoS](exercises/2_inspect_the_robot_and_its_qos.md)
 
-Open a shell on the observer and use the `ros2` CLI to see the graph from the operator
-vantage where the bridge runs.
+Open a shell on the robot, list its nodes and topics, and use `ros2 topic info -v` to read
+the QoS of the latched, reliable-state, and sensor topics — and reason about reliable versus
+best-effort on-board versus off-board.
 
-### [3. Configure the RMW for the star](exercises/3_add_robots_and_watch_discovery.md)
+### [3. Fleet discovery and domain isolation](exercises/3_fleet_discovery_and_domains.md)
+
+Bring up three robots on the flat bus, inspect the generated Cyclone config to see how
+multicast discovery lets every robot find every other, then split the fleet with
+`ROS_DOMAIN_ID` so the observer sees one robot at a time.
+
+### [4. Disable multicast and pin peers](exercises/4_disable_multicast_and_pin_peers.md)
+
+Author Cyclone profiles that turn multicast off and pin explicit peers, then feed them in
+with `--rmw-directory` so each robot discovers only the observer — a hub-and-spoke graph on
+a single domain.
+
+### [5. Configure the RMW for the star](exercises/5_add_robots_and_watch_discovery.md)
 
 Bring up the star topology that deliberately forces RMW configuration, then use Fast DDS's
 `interfaceWhiteList` on the observer to grow its view of the fleet one spoke at a time.
 
-### [4. Select and configure the RMW](exercises/4_select_and_configure_the_rmw.md)
+### [6. Configure Zenoh on the flat bus](exercises/6_configure_zenoh.md)
 
-Flip the fleet between Cyclone DDS, Fast DDS, and Zenoh, inspect the generated per-node
-configs.
-
-### [5. After the workshop](exercises/5_after_the_workshop.md)
-
-Drive a robot with the joystick panel, try the `--model` and `--build` knobs, and take the
-mock robot apart on your own.
+Bring up three robots on Zenoh, inspect the per-robot router / client-session / observer-peer
+configs that let the observer discover the whole fleet, then add a router `downsampling` rule
+that keeps the camera full-rate on the robot but throttles it to 1 Hz on the wire.
 
 ---
 
