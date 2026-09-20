@@ -1,6 +1,6 @@
 # docker/
 
-![Build](https://github.com/clearpathrobotics/roscon2026-workshop-mastering-the-jazzy-rmw/actions/workflows/build.yml/badge.svg)
+![Build](https://github.com/clearpathrobotics/roscon2026-mastering-the-jazzy-rmw/actions/workflows/build.yml/badge.svg)
 
 `ubuntu-headless` is the workshop's ROS 2 image: Ubuntu 24.04, ROS 2 Jazzy, all three RMWs,
 and the networking and capture tools the labs use. Every lab runs it.

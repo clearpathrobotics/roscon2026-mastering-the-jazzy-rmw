@@ -52,7 +52,7 @@ tear the fleet down. You just call the one command.
    ```
 4. **Preflight check.** Confirm your kernel supports network shaping:
    ```bash
-   bash docker/scripts/preflight.sh
+   scripts/workshop preflight
    ```
 
 Facilitators should complete [the pre-workshop checklist](FACILITATOR_CHECKLIST.md),
@@ -162,15 +162,15 @@ tar -czf benchmark.tar.gz -C docker/bags benchmark
 
 # Create a draft release first, so the release check cannot observe it before
 # benchmark.tar.gz is attached.
-gh release create workshop-bags --repo clearpathrobotics/roscon2026-workshop-mastering-the-jazzy-rmw \
+gh release create workshop-bags --repo clearpathrobotics/roscon2026-mastering-the-jazzy-rmw \
   --draft --title "Workshop benchmark bags" --notes "Pre-generated bags for scripts/workshop fetch-bag."
 
 # Upload or replace the asset while the release is still a draft.
-gh release upload workshop-bags benchmark.tar.gz --repo clearpathrobotics/roscon2026-workshop-mastering-the-jazzy-rmw --clobber
+gh release upload workshop-bags benchmark.tar.gz --repo clearpathrobotics/roscon2026-mastering-the-jazzy-rmw --clobber
 
 # Publish only after the asset is present. Publication and later release edits
 # trigger the fetch-bag CI check.
-gh release edit workshop-bags --repo clearpathrobotics/roscon2026-workshop-mastering-the-jazzy-rmw --draft=false
+gh release edit workshop-bags --repo clearpathrobotics/roscon2026-mastering-the-jazzy-rmw --draft=false
 ```
 
 Verify from a clean checkout: `rm -rf docker/bags/benchmark && scripts/workshop fetch-bag`.
@@ -219,6 +219,6 @@ ros2 topic list
 - **Report generation failed.** Rebuild `ubuntu-headless` after pulling the
   current workshop revision so it includes the report dependencies.
 - **netem no-ops.** `tc/netem` needs `sch_netem` (x86_64 only; not in the Jetson
-  L4T kernel). Run `bash docker/scripts/preflight.sh` to check.
+  L4T kernel). Run `scripts/workshop preflight` to check.
 - **Fleet replicas not finding a bag.** Confirm a `*.mcap` exists under `docker/bags/`.
   Generate one: `scripts/workshop gen-bag`.
