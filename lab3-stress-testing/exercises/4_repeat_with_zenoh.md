@@ -226,10 +226,9 @@ subject of this exercise is **TCP under loss**, not Zenoh.
    instead. `good` still applies 0.1% bursty loss, so it may show a small retransmission
    baseline or zero events in a short sample. A marked increase or clustering of
    retransmissions under `bad` is evidence
-   of transport repair under the impaired medium. At the end of each run, TShark also
-   prints its captured-packet total. That total counts every TCP/7447 packet admitted by
-   the capture filter, not just the retransmission rows displayed above; record it as
-   context when comparing the number of displayed retransmissions. Correlate both with
+   of transport repair under the impaired medium. At the end of each run, TShark prints
+   a packet total. With a display filter active, that total is the number of rows shown
+   above, so it is the retransmission count for the 20 seconds. Correlate it with
    AP drops/backlog and state freshness; a raw retransmission count alone does not
    measure user-visible impact.
 
@@ -351,7 +350,7 @@ is validated end to end.
    the robot stop driving rather than merely appearing stale, and confirm it with
    `ros2 topic hz /robot_1/diff_drive_controller/cmd_vel` against `cmd_vel_timeout: 0.5`.
    How hard it stalls depends on your machine: `netem bad` may only make it stutter, so apply
-   `ap reorder` (or `ap severe`) for a decisive, continuous stop.
+   `scripts/workshop -t routed netem reorder` (or `severe`) for a decisive, continuous stop.
    Then put it back. This is the single most valuable thing to be able to recognise in a
    real deployment. Use `timeout 20 ros2 topic hz
    /robot_1/diff_drive_controller/cmd_vel` for the confirmation so it does not leave a
