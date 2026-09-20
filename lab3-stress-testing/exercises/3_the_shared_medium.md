@@ -98,7 +98,7 @@ Build an evidence chain, in this order: **symptom -> monitoring signal -> hypoth
    milliseconds. That change connects the operator symptom to received state over the
    transport path. `state_freshness_ms` is state age, not a one-way latency measurement.
 
-6. **Confirm delivered traffic when Netdata and the ROS CLI need packet-level confirmation.** Lab 2 read
+6. **Confirm delivered traffic when Netdata and the ROS CLI disagree.** Lab 2 read
    captures through WebShark's GUI, frame by frame. Here, measure traffic that has
    survived the shared queue and is leaving `wifi-ap` for the operator.
 

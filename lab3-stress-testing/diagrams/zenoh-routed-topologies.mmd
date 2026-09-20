@@ -1,0 +1,27 @@
+flowchart LR
+  subgraph HubFixture[Exercise 4: routed_zenoh_ap_hub]
+    HNodes["robot ROS nodes\n(loopback)"] -.-> HRobot1["robot 1 router\n(rmw_zenohd)"]
+    HRobot1 --> HAP["wifi-ap\nZenoh hub (rmw_zenohd)\n+ shaped shared path"]
+    HRobot2["robot 2 router\n(rmw_zenohd)"] --> HAP
+    HRobot3["robot 3 router\n(rmw_zenohd)"] --> HAP
+    HObserver["observer peer\n(no local router)"] --> HAP
+  end
+
+  subgraph DirectPeers[Exercise 5: generated default routed Zenoh]
+    DNodes["robot ROS nodes\n(loopback)"] -.-> DRobot1["robot routers\n(rmw_zenohd)"]
+    DRobot1 --- DObserver["observer peer\n(no local router)"]
+    DRobot2["robot 2 router\n(rmw_zenohd)"] --- DObserver
+    DRobot3["robot 3 router\n(rmw_zenohd)"] --- DObserver
+    DAP["wifi-ap\nIP forwarding only\n+ shaped shared path"] --- DRobot1
+    DAP --- DRobot2
+    DAP --- DRobot3
+    DAP --- DObserver
+  end
+
+  subgraph WrongPath[Optional edit to the Exercise 4 fixture: robot-1 ROS session as client]
+    WNodes["robot 1 ROS nodes\n(pilot/control)"] -->|client TCP\nwrong path| WHub["wifi-ap\nZenoh hub"]
+    WRouter["robot 1 router\n(running, bypassed)"] --> WHub
+  end
+
+  classDef path fill:#fff3cd,stroke:#8a6d3b,color:#222
+  class HAP,DAP path

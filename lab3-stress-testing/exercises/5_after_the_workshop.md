@@ -1,5 +1,10 @@
 # 5. After the workshop
 
+> **Topology note:** this exercise uses the generated direct-peer topology. The observer
+> connects directly to each robot's Zenoh router; `wifi-ap` is only an IP-forwarding path.
+> Exercise 4 intentionally uses the `routed_zenoh_ap_hub` fixture instead, where the
+> observer and robot routers connect to a Zenoh hub on `wifi-ap`.
+
 Everything above ran during the session. These activities do not need
 anyone else in the room - pick whichever sounds interesting and run it at home on the
 same stack.
@@ -39,8 +44,11 @@ scripts/workshop -t routed netem degraded
 ```
 
 Note that `up 15 zenoh` (no `--rmw-directory`) is the **default** routed Zenoh config, not
-Exercise 4's hub-and-spoke fixture: here discovery gossip is on and the robot routers do
-not uplink to `wifi-ap` (the `observer` dials each robot router directly).
+Exercise 4's hub fixture: here the robot routers do not use the AP hub; the `observer`
+dials each robot router directly. The AP's Zenoh listener, if started by the generic
+entrypoint, is unused. Discovery gossip is enabled for this default layout.
+Compare the two layouts in the [Zenoh routed-topology diagram](../diagrams/zenoh-routed-topologies.mmd)
+before interpreting packet captures.
 
 Use `netem bad` only after recording the `degraded` behaviour. `zenoh-lowlat` is Lab 4's
 second Zenoh candidate: the same `rmw_zenoh_cpp`, configured as a client of a dedicated
