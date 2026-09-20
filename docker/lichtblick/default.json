@@ -1,83 +1,15 @@
 {
   "configById": {
-    "Joystick Panel.Joystick!2jqxfg2": {
-      "dataSource": "keyboard",
-      "subJoyTopic": "/robot_1/joy",
-      "gamepadId": 0,
-      "publishMode": true,
-      "pubJoyTopic": "/robot_1/joy",
-      "publishFrameId": "",
-      "displayMode": "custom",
-      "debugGamepad": false,
-      "layoutName": "xbox",
-      "mapping_name": "TODO"
-    },
-    "3D!18i6zy7": {
-      "layers": {
-        "845139cb-26bc-40b3-8161-8ab60af4baf5": {
-          "visible": true,
-          "frameLocked": true,
-          "label": "Grid",
-          "instanceId": "845139cb-26bc-40b3-8161-8ab60af4baf5",
-          "layerId": "foxglove.Grid",
-          "size": 10,
-          "divisions": 10,
-          "lineWidth": 1,
-          "color": "#248eff",
-          "position": [
-            0,
-            0,
-            0
-          ],
-          "rotation": [
-            0,
-            0,
-            0
-          ],
-          "order": 1
-        },
-        "919aa481-e1c3-463a-bb83-6cad7c382160": {
-          "visible": true,
-          "frameLocked": true,
-          "label": "URDF",
-          "instanceId": "919aa481-e1c3-463a-bb83-6cad7c382160",
-          "layerId": "foxglove.Urdf",
-          "sourceType": "topic",
-          "url": "",
-          "filePath": "",
-          "parameter": "",
-          "topic": "/robot_1/robot_description",
-          "framePrefix": "",
-          "displayMode": "auto",
-          "fallbackColor": "#ffffff",
-          "order": 2
-        },
-        "4d1e3123-046d-4c81-8ba4-04bf2ff4eb4d": {
-          "visible": true,
-          "frameLocked": true,
-          "label": "URDF",
-          "instanceId": "4d1e3123-046d-4c81-8ba4-04bf2ff4eb4d",
-          "layerId": "foxglove.Urdf",
-          "sourceType": "topic",
-          "url": "",
-          "filePath": "",
-          "parameter": "",
-          "topic": "/robot_2/robot_description",
-          "framePrefix": "",
-          "displayMode": "auto",
-          "fallbackColor": "#ffffff",
-          "order": 3
-        }
-      },
+    "3D!s2ocw5": {
       "cameraState": {
         "perspective": true,
-        "distance": 5.2704018893092135,
-        "phi": 48.61504907306422,
-        "thetaOffset": 129.4056706652152,
+        "distance": 12.003249999995825,
+        "phi": 38.10033821871282,
+        "thetaOffset": 0.10710259301175347,
         "targetOffset": [
-          0.6156647373007778,
-          -0.6239121546347169,
-          -1.0196964982090086e-17
+          -0.02279560828304679,
+          -0.25619424181979605,
+          -4.831858305930278e-17
         ],
         "target": [
           0,
@@ -95,19 +27,299 @@
         "far": 5000
       },
       "followMode": "follow-pose",
-      "followTf": "map",
+      "followTf": "world",
       "scene": {
-        "ignoreColladaUpAxis": false,
+        "syncCamera": false,
         "meshUpAxis": "z_up",
-        "labelScaleFactor": 0.61,
-        "syncCamera": true,
+        "ignoreColladaUpAxis": false,
+        "backgroundColor": "#000000",
+        "enableStats": false,
+        "directionalLightIntensity": 3.14,
         "transforms": {
-          "editable": false,
+          "showLabel": false,
+          "editable": false
+        }
+      },
+      "transforms": {},
+      "topics": {
+        "/robot_1/scan": {
+          "visible": true,
+          "colorField": "range",
+          "colorMode": "colormap",
+          "colorMap": "turbo",
+          "pointSize": 15
+        }
+      },
+      "layers": {
+        "1612a82c-8ffc-4ba6-bd3b-6e084dd5e1a7": {
+          "visible": true,
+          "frameLocked": true,
+          "label": "Grid",
+          "instanceId": "1612a82c-8ffc-4ba6-bd3b-6e084dd5e1a7",
+          "layerId": "foxglove.Grid",
+          "size": 10,
+          "divisions": 10,
+          "lineWidth": 1,
+          "color": "#248eff",
+          "position": [
+            0,
+            0,
+            0
+          ],
+          "rotation": [
+            0,
+            0,
+            0
+          ],
+          "order": 1
+        },
+        "6f873c3a-661e-4813-902b-c882087348b8": {
+          "visible": true,
+          "frameLocked": true,
+          "label": "URDF",
+          "instanceId": "6f873c3a-661e-4813-902b-c882087348b8",
+          "layerId": "foxglove.Urdf",
+          "sourceType": "topic",
+          "url": "",
+          "filePath": "",
+          "parameter": "",
+          "topic": "/robot_1/world_description",
+          "framePrefix": "",
+          "displayMode": "auto",
+          "fallbackColor": "#ffffff",
+          "order": 2
+        },
+        "d130a075-4453-4b2e-be13-9845719e585e": {
+          "visible": true,
+          "frameLocked": true,
+          "label": "URDF",
+          "instanceId": "d130a075-4453-4b2e-be13-9845719e585e",
+          "layerId": "foxglove.Urdf",
+          "sourceType": "topic",
+          "url": "",
+          "filePath": "",
+          "parameter": "",
+          "topic": "/robot_1/robot_description",
+          "framePrefix": "",
+          "displayMode": "auto",
+          "fallbackColor": "#ffffff",
+          "order": 3
+        }
+      },
+      "publish": {
+        "type": "point",
+        "poseTopic": "/move_base_simple/goal",
+        "pointTopic": "/clicked_point",
+        "poseEstimateTopic": "/initialpose",
+        "poseEstimateXDeviation": 0.5,
+        "poseEstimateYDeviation": 0.5,
+        "poseEstimateThetaDeviation": 0.26179939
+      },
+      "imageMode": {},
+      "lichtblickPanelTitle": "3D"
+    },
+    "Joystick Panel.Joystick!1d74jsw": {
+      "dataSource": "keyboard",
+      "subJoyTopic": "/robot_2/joy",
+      "gamepadId": 1,
+      "publishMode": true,
+      "pubJoyTopic": "/robot_1/joy",
+      "publishFrameId": "",
+      "displayMode": "custom",
+      "debugGamepad": false,
+      "layoutName": "xbox",
+      "mapping_name": "TODO"
+    },
+    "Image!1izl808": {
+      "cameraState": {
+        "distance": 20,
+        "perspective": true,
+        "phi": 60,
+        "target": [
+          0,
+          0,
+          0
+        ],
+        "targetOffset": [
+          0,
+          0,
+          0
+        ],
+        "targetOrientation": [
+          0,
+          0,
+          0,
+          1
+        ],
+        "thetaOffset": 45,
+        "fovy": 45,
+        "near": 0.5,
+        "far": 5000
+      },
+      "followMode": "follow-pose",
+      "scene": {},
+      "transforms": {},
+      "topics": {},
+      "layers": {},
+      "publish": {
+        "type": "point",
+        "poseTopic": "/move_base_simple/goal",
+        "pointTopic": "/clicked_point",
+        "poseEstimateTopic": "/initialpose",
+        "poseEstimateXDeviation": 0.5,
+        "poseEstimateYDeviation": 0.5,
+        "poseEstimateThetaDeviation": 0.26179939
+      },
+      "imageMode": {
+        "imageTopic": "/robot_1/sensor_0/camera/image_comp",
+        "calibrationTopic": "/robot_1/sensor_0/camera/camera_info"
+      }
+    },
+    "3D!w8kd9i": {
+      "cameraState": {
+        "distance": 19.999999999999794,
+        "perspective": true,
+        "phi": 0.00005729832627056611,
+        "target": [
+          0,
+          0,
+          0
+        ],
+        "targetOffset": [
+          0,
+          0,
+          -3.99512371367014e-40
+        ],
+        "targetOrientation": [
+          0,
+          0,
+          0,
+          1
+        ],
+        "thetaOffset": 90,
+        "fovy": 45,
+        "near": 0.5,
+        "far": 5000
+      },
+      "followMode": "follow-pose",
+      "scene": {
+        "meshUpAxis": "z_up",
+        "transforms": {
           "showLabel": false
         }
       },
       "transforms": {},
-      "topics": {},
+      "topics": {
+        "/robot_1/scan": {
+          "visible": true,
+          "colorField": "range",
+          "colorMode": "colormap",
+          "colorMap": "turbo",
+          "pointSize": 15
+        },
+        "/robot_2/scan": {
+          "visible": true,
+          "colorField": "range",
+          "colorMode": "colormap",
+          "colorMap": "turbo",
+          "pointSize": 15
+        },
+        "/robot_3/scan": {
+          "visible": true,
+          "colorField": "range",
+          "colorMode": "colormap",
+          "colorMap": "turbo",
+          "pointSize": 15
+        }
+      },
+      "layers": {
+        "a047de98-29e4-4498-8db1-b62459343abc": {
+          "visible": true,
+          "frameLocked": true,
+          "label": "Grid",
+          "instanceId": "a047de98-29e4-4498-8db1-b62459343abc",
+          "layerId": "foxglove.Grid",
+          "size": 10,
+          "divisions": 10,
+          "lineWidth": 1,
+          "color": "#248eff",
+          "position": [
+            0,
+            0,
+            0
+          ],
+          "rotation": [
+            0,
+            0,
+            0
+          ],
+          "order": 1
+        },
+        "8dd16366-c72d-472a-8250-744d0af0b87a": {
+          "visible": true,
+          "frameLocked": true,
+          "label": "URDF",
+          "instanceId": "8dd16366-c72d-472a-8250-744d0af0b87a",
+          "layerId": "foxglove.Urdf",
+          "sourceType": "topic",
+          "url": "",
+          "filePath": "",
+          "parameter": "",
+          "topic": "/robot_1/world_description",
+          "framePrefix": "",
+          "displayMode": "auto",
+          "fallbackColor": "#ffffff",
+          "order": 2
+        },
+        "25fd8665-097d-4750-809c-43b3b5316eed": {
+          "visible": true,
+          "frameLocked": true,
+          "label": "URDF",
+          "instanceId": "25fd8665-097d-4750-809c-43b3b5316eed",
+          "layerId": "foxglove.Urdf",
+          "sourceType": "topic",
+          "url": "",
+          "filePath": "",
+          "parameter": "",
+          "topic": "/robot_1/robot_description",
+          "framePrefix": "",
+          "displayMode": "auto",
+          "fallbackColor": "#ffffff",
+          "order": 3
+        },
+        "b042977c-0ca3-48bf-a83c-1156d9d2051f": {
+          "visible": true,
+          "frameLocked": true,
+          "label": "URDF",
+          "instanceId": "b042977c-0ca3-48bf-a83c-1156d9d2051f",
+          "layerId": "foxglove.Urdf",
+          "sourceType": "topic",
+          "url": "",
+          "filePath": "",
+          "parameter": "",
+          "topic": "/robot_2/robot_description",
+          "framePrefix": "",
+          "displayMode": "auto",
+          "fallbackColor": "#ffffff",
+          "order": 4
+        },
+        "fb1c3ffd-f71c-4548-8951-2be973dd65b8": {
+          "visible": true,
+          "frameLocked": true,
+          "label": "URDF",
+          "instanceId": "fb1c3ffd-f71c-4548-8951-2be973dd65b8",
+          "layerId": "foxglove.Urdf",
+          "sourceType": "topic",
+          "url": "",
+          "filePath": "",
+          "parameter": "",
+          "topic": "/robot_3/robot_description",
+          "framePrefix": "",
+          "displayMode": "auto",
+          "fallbackColor": "#ffffff",
+          "order": 5
+        }
+      },
       "publish": {
         "type": "point",
         "poseTopic": "/move_base_simple/goal",
@@ -119,17 +331,91 @@
       },
       "imageMode": {}
     },
-    "Joystick Panel.Joystick!1d74jsw": {
-      "dataSource": "keyboard",
-      "subJoyTopic": "/robot_2/joy",
-      "gamepadId": 1,
+    "Joystick Panel.Joystick!3uhczp9": {
+      "subJoyTopic": "/joy",
+      "pubJoyTopic": "robot_1/joy",
       "publishMode": true,
-      "pubJoyTopic": "/robot_2/joy",
       "publishFrameId": "",
+      "dataSource": "keyboard",
       "displayMode": "custom",
       "debugGamepad": false,
       "layoutName": "xbox",
-      "mapping_name": "TODO"
+      "mapping_name": "TODO",
+      "gamepadId": 0
+    },
+    "Image!1qsnxd1": {
+      "cameraState": {
+        "distance": 20,
+        "perspective": true,
+        "phi": 60,
+        "target": [
+          0,
+          0,
+          0
+        ],
+        "targetOffset": [
+          0,
+          0,
+          0
+        ],
+        "targetOrientation": [
+          0,
+          0,
+          0,
+          1
+        ],
+        "thetaOffset": 45,
+        "fovy": 45,
+        "near": 0.5,
+        "far": 5000
+      },
+      "followMode": "follow-pose",
+      "scene": {},
+      "transforms": {},
+      "topics": {},
+      "layers": {},
+      "publish": {
+        "type": "point",
+        "poseTopic": "/move_base_simple/goal",
+        "pointTopic": "/clicked_point",
+        "poseEstimateTopic": "/initialpose",
+        "poseEstimateXDeviation": 0.5,
+        "poseEstimateYDeviation": 0.5,
+        "poseEstimateThetaDeviation": 0.26179939
+      },
+      "imageMode": {
+        "imageTopic": "/fleet_map/image_raw"
+      }
+    },
+    "Tab!1gp40c1": {
+      "activeTabIdx": 1,
+      "tabs": [
+        {
+          "title": "Single Robot",
+          "layout": {
+            "first": "3D!s2ocw5",
+            "second": {
+              "first": "Joystick Panel.Joystick!1d74jsw",
+              "second": "Image!1izl808",
+              "direction": "column"
+            },
+            "direction": "row",
+            "splitPercentage": 73.37239583333334
+          }
+        },
+        {
+          "title": "Three Robots",
+          "layout": {
+            "first": "3D!w8kd9i",
+            "second": "Joystick Panel.Joystick!3uhczp9",
+            "direction": "row"
+          }
+        },
+        {
+          "title": "Fleet Map",
+          "layout": "Image!1qsnxd1"
+        }
+      ]
     }
   },
   "globalVariables": {},
@@ -137,14 +423,5 @@
   "playbackConfig": {
     "speed": 1
   },
-  "layout": {
-    "direction": "row",
-    "first": {
-      "first": "Joystick Panel.Joystick!2jqxfg2",
-      "second": "Joystick Panel.Joystick!1d74jsw",
-      "direction": "column"
-    },
-    "second": "3D!18i6zy7",
-    "splitPercentage": 18.50079589066513
-  }
+  "layout": "Tab!1gp40c1"
 }
