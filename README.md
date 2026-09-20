@@ -39,6 +39,14 @@ Replay one MCAP workload across Fast DDS, Cyclone DDS, and Zenoh so every stack 
 
 ## Prepare your computer
 
+**Before you travel**, in the Linux environment you'll use for the labs:
+
+1. Check your computer is compatible (run the compatibility script in the setup details below).
+2. Clone this repository and pull the workshop images with `scripts/workshop pull` (several GB, so use a solid connection before the event, not conference Wi-Fi).
+3. Make sure Google Chrome has WebGL enabled for the web UIs. There is no quick fix if it is off: update your GPU drivers, then open `chrome://gpu/` and confirm WebGL shows as Hardware accelerated.
+
+If your shell exports `RMW_IMPLEMENTATION` (for example in `~/.bashrc`), run `unset RMW_IMPLEMENTATION` in the terminal you use for the labs.
+
 <details>
 <summary><strong>Setup and platform details</strong></summary>
 
@@ -201,13 +209,6 @@ If that is not possible, say so in the form.
 
 > [!TIP]
 > Watch this repository to get notified of updates.
-
-The full lab instructions and content will be published here on
-**Tuesday 15 September 2026**.
-
-Clone the repository and pull the Docker images before you travel. The images are
-several GB, and conference Wi-Fi will not cope with a room full of people pulling
-them at once.
 
 ## After the workshop
 
