@@ -258,10 +258,11 @@ name. Edit the same per-node profiles you configured above, then bring the stack
    Do the same for `mock-robot-2.xml` (own `172.30.12.12`, observer `172.30.12.20`) and
    `mock-robot-3.xml` (own `172.30.13.13`, observer `172.30.13.20`).
 
-4. Bring the stack up reusing your hand-edited configs — `--skip-gen` recreates the
-   containers so they re-read the files, without regenerating them:
+4. Bring the stack **down**, then back up reusing your hand-edited configs — `--skip-gen`
+   recreates the containers so they re-read the files, without regenerating them:
 
    ```bash
+   scripts/workshop -t star down
    MOCK_RUN_PILOT=false scripts/workshop -t star up 3 fastdds --skip-gen
    ```
 
