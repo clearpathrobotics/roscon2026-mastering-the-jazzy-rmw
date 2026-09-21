@@ -221,7 +221,7 @@ Author Cyclone profiles that turn multicast off and pin explicit peers, then fee
 with `--rmw-directory` so each robot discovers only the observer — a hub-and-spoke graph on
 a single domain.
 
-### [5. Configure the RMW for the star](exercises/5_add_robots_and_watch_discovery.md)
+### [5. Configure the RMW for the star](exercises/5_configure_the_rmw_for_the_star.md)
 
 Bring up the star topology that deliberately forces RMW configuration, then use Fast DDS's
 `interfaceWhiteList` on the observer to grow its view of the fleet one spoke at a time.

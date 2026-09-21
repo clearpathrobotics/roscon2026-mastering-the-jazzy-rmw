@@ -202,11 +202,13 @@ plus an **initial peers** list, which sends its announcements straight to the ad
 name. Edit the same per-node profiles you configured above, then bring the stack back up with
 `--skip-gen`.
 
-1. Edit `docker/rmw_configuration/star/fast/observer.xml` and add these two lists inside the
-   existing `<builtin>` element (alongside `<discovery_config>`). The observer listens on all
-   three spoke legs and dials every robot:
+1. Edit `docker/rmw_configuration/star/fast/observer.xml` and add the two lists **inside the
+   existing `<builtin>` element** — right after the `</discovery_config>` line. The anchor
+   comments below name tags that are **already in the file**, so you know exactly where the
+   new lines slot in:
 
    ```xml
+   <!-- </discovery_config>  (already in the file — add the two lists right after it) -->
    <!-- Own metatraffic unicast locators, one per spoke leg. Defining these
         suppresses the default multicast metatraffic locator. -->
    <metatrafficUnicastLocatorList>
@@ -220,32 +222,50 @@ name. Edit the same per-node profiles you configured above, then bring the stack
      <locator><udpv4><address>172.30.12.12</address></udpv4></locator>
      <locator><udpv4><address>172.30.13.13</address></udpv4></locator>
    </initialPeersList>
+   <!-- </builtin>  (already in the file — the lists above go before it) -->
    ```
 
-2. Edit each `docker/rmw_configuration/star/fast/mock-robot-<k>.xml` the same way. Each robot
-   listens on its own spoke address and dials only the observer's leg on that spoke — for
-   `mock-robot-1.xml`:
+2. Still in `observer.xml`, add one more line **inside the `<transport_descriptor>`**, right
+   after the whitelist. Without it Fast DDS only probes **4** participant ports per peer, but
+   each robot runs more than four participants (one per node) — so the observer would discover
+   only *some* of each robot's nodes:
 
    ```xml
+   <!-- </interfaceWhiteList>  (already in the file — add the line below right after it) -->
+   <maxInitialPeersRange>30</maxInitialPeersRange>   <!-- probe 30 participant ports per peer, not 4 -->
+   <!-- </transport_descriptor>  (already in the file — the line above goes before it) -->
+   ```
+
+3. Edit each `docker/rmw_configuration/star/fast/mock-robot-<k>.xml` the same way — the
+   `maxInitialPeersRange` line plus the two builtin lists. Each robot listens on its own spoke
+   address and dials only the observer's leg on that spoke — for `mock-robot-1.xml`:
+
+   ```xml
+   <!-- </interfaceWhiteList>  (already in the file — add the line below right after it) -->
+   <maxInitialPeersRange>30</maxInitialPeersRange>   <!-- probe 30 participant ports per peer, not 4 -->
+   <!-- </transport_descriptor>  (already in the file) -->
+
+   <!-- </discovery_config>  (already in the file — add the two lists right after it) -->
    <metatrafficUnicastLocatorList>
      <locator><udpv4><address>172.30.11.11</address></udpv4></locator>
    </metatrafficUnicastLocatorList>
    <initialPeersList>
      <locator><udpv4><address>172.30.11.20</address></udpv4></locator>
    </initialPeersList>
+   <!-- </builtin>  (already in the file — the lists above go before it) -->
    ```
 
    Do the same for `mock-robot-2.xml` (own `172.30.12.12`, observer `172.30.12.20`) and
    `mock-robot-3.xml` (own `172.30.13.13`, observer `172.30.13.20`).
 
-3. Bring the stack up reusing your hand-edited configs — `--skip-gen` recreates the
+4. Bring the stack up reusing your hand-edited configs — `--skip-gen` recreates the
    containers so they re-read the files, without regenerating them:
 
    ```bash
    MOCK_RUN_PILOT=false scripts/workshop -t star up 3 fastdds --skip-gen
    ```
 
-4. Confirm topics still flow with multicast fully off:
+5. Confirm topics still flow with multicast fully off:
 
    ```bash
    scripts/workshop shell observer
