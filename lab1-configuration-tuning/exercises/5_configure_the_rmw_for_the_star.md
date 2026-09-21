@@ -261,7 +261,17 @@ name. Edit the same per-node profiles you configured above, then bring the stack
    Do the same for `mock-robot-2.xml` (own `172.30.12.12`, observer `172.30.12.20`) and
    `mock-robot-3.xml` (own `172.30.13.13`, observer `172.30.13.20`).
 
-4. Bring the stack **down**, then back up reusing your hand-edited configs — `--skip-gen`
+4. Edit the generated compose file `docker/compose/star.yml`, which `--skip-gen` also reuses.
+   Under the `environment:` key of **all four** services (the three robots and the observer),
+   add the line below. Without it, ROS 2's automatic discovery (default `SUBNET`) re-adds a
+   multicast peer on top of your profile, so the nodes keep sending multicast even with the
+   unicast locators in place:
+
+   ```yaml
+   ROS_AUTOMATIC_DISCOVERY_RANGE: SYSTEM_DEFAULT
+   ```
+
+5. Bring the stack **down**, then back up reusing your hand-edited configs. `--skip-gen`
    recreates the containers so they re-read the files, without regenerating them:
 
    ```bash
@@ -269,12 +279,12 @@ name. Edit the same per-node profiles you configured above, then bring the stack
    MOCK_RUN_PILOT=false scripts/workshop -t star up 3 fastdds --skip-gen
    ```
 
-5. Confirm topics still flow with multicast fully off:
+6. Confirm topics still flow with multicast fully off:
 
    ```bash
    scripts/workshop shell observer
    ros2 node list --no-daemon --spin-time 5       # robot_1, robot_2, robot_3
-   ros2 topic echo --once /robot_1/scan   # data arrives over unicast only
+   ros2 topic hz /robot_1/scan            # ~10 Hz, over unicast only; Ctrl-C to stop
    exit
    ```
 
