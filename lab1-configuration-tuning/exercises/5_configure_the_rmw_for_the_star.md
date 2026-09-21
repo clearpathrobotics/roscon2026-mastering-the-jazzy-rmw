@@ -202,11 +202,13 @@ plus an **initial peers** list, which sends its announcements straight to the ad
 name. Edit the same per-node profiles you configured above, then bring the stack back up with
 `--skip-gen`.
 
-1. Edit `docker/rmw_configuration/star/fast/observer.xml` and add these two lists inside the
-   existing `<builtin>` element (alongside `<discovery_config>`). The observer listens on all
-   three spoke legs and dials every robot:
+1. Edit `docker/rmw_configuration/star/fast/observer.xml` and add the two lists **inside the
+   existing `<builtin>` element** — right after the `</discovery_config>` line. The anchor
+   comments below name tags that are **already in the file**, so you know exactly where the
+   new lines slot in:
 
    ```xml
+   <!-- </discovery_config>  (already in the file — add the two lists right after it) -->
    <!-- Own metatraffic unicast locators, one per spoke leg. Defining these
         suppresses the default multicast metatraffic locator. -->
    <metatrafficUnicastLocatorList>
@@ -220,37 +222,69 @@ name. Edit the same per-node profiles you configured above, then bring the stack
      <locator><udpv4><address>172.30.12.12</address></udpv4></locator>
      <locator><udpv4><address>172.30.13.13</address></udpv4></locator>
    </initialPeersList>
+   <!-- </builtin>  (already in the file — the lists above go before it) -->
    ```
 
-2. Edit each `docker/rmw_configuration/star/fast/mock-robot-<k>.xml` the same way. Each robot
-   listens on its own spoke address and dials only the observer's leg on that spoke — for
+2. Still in `observer.xml`, add one more line **inside the `<transport_descriptor>`**, right
+   after the whitelist. Without it Fast DDS only probes **4** participant ports per peer, but
+   each robot runs more than four participants (one per node) — so the observer would discover
+   only *some* of each robot's nodes:
+
+   ```xml
+   <!-- </interfaceWhiteList>  (already in the file — add the line below right after it) -->
+   <maxInitialPeersRange>30</maxInitialPeersRange>   <!-- probe 30 participant ports per peer, not 4 -->
+   <!-- </transport_descriptor>  (already in the file — the line above goes before it) -->
+   ```
+
+3. Edit each `docker/rmw_configuration/star/fast/mock-robot-<k>.xml` the same way — the
+   `maxInitialPeersRange` line plus the two builtin lists. Each robot listens on its own spoke
+   address and dials **two** peers: **itself** (so the robot's many local node-participants
+   discover each other with multicast off) and the **observer's leg on that spoke** — for
    `mock-robot-1.xml`:
 
    ```xml
+   <!-- </interfaceWhiteList>  (already in the file — add the line below right after it) -->
+   <maxInitialPeersRange>30</maxInitialPeersRange>   <!-- probe 30 participant ports per peer, not 4 -->
+   <!-- </transport_descriptor>  (already in the file) -->
+
+   <!-- </discovery_config>  (already in the file — add the two lists right after it) -->
    <metatrafficUnicastLocatorList>
      <locator><udpv4><address>172.30.11.11</address></udpv4></locator>
    </metatrafficUnicastLocatorList>
    <initialPeersList>
-     <locator><udpv4><address>172.30.11.20</address></udpv4></locator>
+     <locator><udpv4><address>172.30.11.11</address></udpv4></locator>   <!-- self: this robot's nodes discover each other -->
+     <locator><udpv4><address>172.30.11.20</address></udpv4></locator>   <!-- observer's leg on this spoke -->
    </initialPeersList>
+   <!-- </builtin>  (already in the file — the lists above go before it) -->
    ```
 
    Do the same for `mock-robot-2.xml` (own `172.30.12.12`, observer `172.30.12.20`) and
    `mock-robot-3.xml` (own `172.30.13.13`, observer `172.30.13.20`).
 
-3. Bring the stack up reusing your hand-edited configs — `--skip-gen` recreates the
-   containers so they re-read the files, without regenerating them:
+4. Edit the generated compose file `docker/compose/star.yml`, which `--skip-gen` also reuses.
+   Under the `environment:` key of **all four** services (the three robots and the observer),
+   add the line below. Without it, ROS 2's automatic discovery (default `SUBNET`) re-adds a
+   multicast peer on top of your profile, so the nodes keep sending multicast even with the
+   unicast locators in place:
+
+   ```yaml
+   ROS_AUTOMATIC_DISCOVERY_RANGE: SYSTEM_DEFAULT
+   ```
+
+5. Bring the stack **down**, then back up reusing your hand-edited configs. `--skip-gen`
+   recreates the containers so they re-read the files, without regenerating them:
 
    ```bash
+   scripts/workshop -t star down
    MOCK_RUN_PILOT=false scripts/workshop -t star up 3 fastdds --skip-gen
    ```
 
-4. Confirm topics still flow with multicast fully off:
+6. Confirm topics still flow with multicast fully off:
 
    ```bash
    scripts/workshop shell observer
    ros2 node list --no-daemon --spin-time 5       # robot_1, robot_2, robot_3
-   ros2 topic echo --once /robot_1/scan   # data arrives over unicast only
+   ros2 topic hz /robot_1/scan            # ~10 Hz, over unicast only; Ctrl-C to stop
    exit
    ```
 

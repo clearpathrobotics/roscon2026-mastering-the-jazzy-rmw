@@ -141,4 +141,4 @@ Bring the fleet down before continuing:
 scripts/workshop -t flat down
 ```
 
-**Next:** [5. Configure the RMW for the star](5_add_robots_and_watch_discovery.md)
+**Next:** [5. Configure the RMW for the star](5_configure_the_rmw_for_the_star.md)

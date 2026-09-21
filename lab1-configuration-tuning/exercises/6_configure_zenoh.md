@@ -196,7 +196,7 @@ robot sends to the observer. On-robot subscribers, reading over `lo`, still get 
 
 On the flat bus the observer found every router for free over multicast. The **star** has no
 shared segment and multicast is off, so — exactly like Fast DDS in [Exercise
-5](5_add_robots_and_watch_discovery.md) — the observer has to be told **explicitly** which
+5](5_configure_the_rmw_for_the_star.md) — the observer has to be told **explicitly** which
 robots to reach. For Zenoh that list is the observer peer's **`connect.endpoints`**: one
 `tcp/<robot-spoke-ip>:7447` per robot router. It is the Zenoh counterpart of the Fast DDS
 `interfaceWhiteList` — the set of robots the observer can see. You will trim it to a single
