@@ -238,7 +238,9 @@ name. Edit the same per-node profiles you configured above, then bring the stack
 
 3. Edit each `docker/rmw_configuration/star/fast/mock-robot-<k>.xml` the same way — the
    `maxInitialPeersRange` line plus the two builtin lists. Each robot listens on its own spoke
-   address and dials only the observer's leg on that spoke — for `mock-robot-1.xml`:
+   address and dials **two** peers: **itself** (so the robot's many local node-participants
+   discover each other with multicast off) and the **observer's leg on that spoke** — for
+   `mock-robot-1.xml`:
 
    ```xml
    <!-- </interfaceWhiteList>  (already in the file — add the line below right after it) -->
@@ -250,7 +252,8 @@ name. Edit the same per-node profiles you configured above, then bring the stack
      <locator><udpv4><address>172.30.11.11</address></udpv4></locator>
    </metatrafficUnicastLocatorList>
    <initialPeersList>
-     <locator><udpv4><address>172.30.11.20</address></udpv4></locator>
+     <locator><udpv4><address>172.30.11.11</address></udpv4></locator>   <!-- self: this robot's nodes discover each other -->
+     <locator><udpv4><address>172.30.11.20</address></udpv4></locator>   <!-- observer's leg on this spoke -->
    </initialPeersList>
    <!-- </builtin>  (already in the file — the lists above go before it) -->
    ```
