@@ -1,6 +1,6 @@
 // Per-host Zenoh router for the routed shared-medium topology (Lab 3).
 //
-// Every robot and the console runs its own rmw_zenohd. Local ROS nodes connect to
+// Every robot runs its own rmw_zenohd. Local ROS nodes connect to
 // THIS router over loopback, so intra-robot traffic (pilot -> twist_mux -> controller)
 // never leaves the container. Each host router then links to the infrastructure router
 // on wifi-ap, so only genuinely remote traffic crosses the shared medium.

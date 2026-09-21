@@ -40,13 +40,13 @@ the single queue every robot and the `observer` operator container must cross.
    http://localhost:8080/?ds=foxglove-websocket&ds.url=ws://localhost:8765
    ```
 
-2. Open <http://localhost:19999> in a second tab. Search for **Lab 3 AP** and keep
-   the shared throughput, drops, and queue backlog charts visible. Search for
+2. Open the Netdata dashboard <http://localhost:19999> in a second tab. Search for **Lab 3 AP** and
+   keep the shared throughput, drops, and queue backlog charts visible. Search for
    **Apps CPU** to keep the `lab3_robots` and `lab3_console` process groups nearby.
 
    Do not use **Lab 3 Fleet Dropped Packets** for this step. That chart belongs to
    Exercise 1's separate flat/pinned-fleet deployment and reads each container NIC's local
-   drop counter. `ap bad` drops packets at the `wifi-ap` shared `ifb0` qdisc, which is
+   drop counter. `netem bad` drops packets at the `wifi-ap` shared `ifb0` qdisc, which is
    reported by **Lab 3 AP Qdisc Drops**.
 
 3. Watch the operator map for 30 seconds with the applied `good` profile. The robots
@@ -60,14 +60,24 @@ the single queue every robot and the `observer` operator container must cross.
    docker exec observer bash -c 'source /opt/ros/jazzy/setup.bash && ros2 topic info /robot_1/scan'
    ```
 
-   `Subscription count: 0`. A publisher alone puts nothing on the wire - a *subscriber*
-   is what pulls a topic across the shared medium. The map still subscribes to `/tf`, so
-   transform state remains baseline AP traffic. Open a second terminal and start the
-   fleet inspector with no subscriptions, to establish that it adds no *sensor* load:
+   What does `Subscription count: 0` tell you about sensor traffic? **Hint:** a publisher
+   alone puts nothing on the wire; a *subscriber* is what pulls a topic across the shared
+   medium. The map still subscribes to `/tf`, so transform state remains baseline AP
+   traffic. Open a second terminal and start the fleet inspector with no subscriptions:
 
    ```bash
    docker exec -it observer bash -c 'source /opt/ros/jazzy/setup.bash && python3 /scripts/lab3/fleet_inspector.py --robots robot_1,robot_2,robot_3 --sensors none'
    ```
+
+   <details>
+   <summary>Answer: what the zero count establishes</summary>
+
+   The topic has no observer subscription, so `/robot_1/scan` is not being pulled across
+   the AP. Because `--sensors none` creates no sensor subscriptions, the inspector adds no
+   sensor load. This does not mean the AP is idle: discovery, `/tf`, and other existing
+   traffic can still be present.
+
+   </details>
 
    Stop it with Ctrl-C, then start it again on the scan class and watch **Lab 3 AP**
    throughput in Netdata rise as the subscriptions match:
@@ -75,6 +85,45 @@ the single queue every robot and the `observer` operator container must cross.
    ```bash
    docker exec -it observer bash -c 'source /opt/ros/jazzy/setup.bash && python3 /scripts/lab3/fleet_inspector.py --robots robot_1,robot_2,robot_3 --sensors scan'
    ```
+
+   While the scan inspector is running, verify the subscription it created:
+
+   ```bash
+   docker exec observer bash -c 'source /opt/ros/jazzy/setup.bash && ros2 topic info --verbose /robot_1/scan'
+   ```
+
+   What changed? **Hint:** look for a new subscriber node and compare the count with your
+   earlier result. Then use Netdata to connect that new subscription to the AP throughput.
+
+   <details>
+   <summary>Answer: what the scan subscription proves</summary>
+
+    A representative result is:
+
+    ```text
+    Subscription count: 1
+
+    Node name: fleet_inspector
+    Node namespace: /
+    Topic type: sensor_msgs/msg/LaserScan
+    Topic type hash: RIHS01_64c191398013af96509d518dac71d5164f9382553fce5c1f8cca5be7924bd828
+    Endpoint type: SUBSCRIPTION
+    GID: 01.10.09.ee.89.ea.78.ab.3f.9d.55.dc.00.00.17.04
+    QoS profile:
+       Reliability: RELIABLE
+       History (Depth): KEEP_LAST (10)
+       Durability: VOLATILE
+       Lifespan: Infinite
+       Deadline: Infinite
+       Liveliness: AUTOMATIC
+       Liveliness lease duration: Infinite
+    ```
+
+    The GID identifies this particular endpoint and may differ between runs. The
+    before-and-after check ties the added AP traffic to the inspector's new sensor
+    subscription.
+
+   </details>
 
    The inspector prints one row per subscribed topic and rewrites it once a second. That
    running readout is the **inspector table**, referred to by that name from here on. On
@@ -156,7 +205,7 @@ the single queue every robot and the `observer` operator container must cross.
 <summary>Answer: what the map is telling you</summary>
 
 The map shows the operator consequence of stale or missing state, not necessarily a
-stopped robot. The shared AP queue is the first hypothesis: `ap bad` can raise its
+stopped robot. The shared AP queue is the first hypothesis: `netem bad` can raise its
 backlog and drops while the fleet still runs locally. Exercise 3 distinguishes that
 from a host CPU bottleneck and verifies whether the topic stream is actually stale.
 </details>
@@ -191,7 +240,7 @@ report `Subscription count: 0`.
 
 **Lab 3 Fleet Dropped Packets stays at zero.** Expected for this routed exercise.
 The AP qdisc, not the robot NIC, is dropping packets. Search for **Lab 3 AP Qdisc
-Drops** and use `scripts/workshop -t routed netem list` to inspect the same
+Drops** and use `scripts/workshop -t routed netem` to inspect the same
 cumulative `tc` counter.
 
 Leave the routed fleet running. [Exercise 3](3_the_shared_medium.md) uses it to trace

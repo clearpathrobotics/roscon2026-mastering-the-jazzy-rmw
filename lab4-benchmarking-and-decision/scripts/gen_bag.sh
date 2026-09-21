@@ -26,6 +26,10 @@ SVC="${GEN_BAG_SERVICE:-ubuntu-headless}"
 
 compose() { ( cd "$DOCKER_ROOT" && docker compose "$@" ); }
 
+# Fast DDS carries same-host data over shared memory, and a recorder cannot open segments
+# that a root publisher created, so the publisher and the recorder both run as the host user.
+AS_HOST_USER=(--user "$(id -u):$(id -g)" -e HOME=/tmp)
+
 # Create the bind-mount target as the host user first, or Docker auto-creates
 # it as root on first container start and the --user exec below can't write to it.
 mkdir -p "$DOCKER_ROOT/bags"
@@ -35,19 +39,27 @@ compose up -d "$SVC" >/dev/null 2>&1 || { fail "could not start $SVC"; exit 1; }
 sleep 2
 
 info "generating synthetic bag '$NAME' (${DURATION}s): /camera/image_raw, /cmd_vel, /tf"
-compose exec -d "$SVC" bash -c 'source /opt/ros/jazzy/setup.bash && exec python3 /scripts/lab4/gen_bag.py' \
+compose exec -d "${AS_HOST_USER[@]}" "$SVC" bash -c 'source /opt/ros/jazzy/setup.bash && exec python3 /scripts/lab4/gen_bag.py' \
     || { fail "could not start gen_bag.py publisher"; exit 1; }
 sleep 2
 
-compose exec --user "$(id -u):$(id -g)" -e HOME=/tmp "$SVC" bash -c "source /opt/ros/jazzy/setup.bash && cd /bags && rm -rf '$NAME' && timeout ${DURATION}s ros2 bag record -o '$NAME' /camera/image_raw /cmd_vel /tf" \
+compose exec "${AS_HOST_USER[@]}" "$SVC" bash -c "source /opt/ros/jazzy/setup.bash && cd /bags && rm -rf '$NAME' && timeout ${DURATION}s ros2 bag record -o '$NAME' /camera/image_raw /cmd_vel /tf" \
     || warn "ros2 bag record exited non-zero (timeout stopping it is expected)"
 
 compose exec "$SVC" pkill -f gen_bag.py >/dev/null 2>&1 || true
 
-if compose exec "$SVC" test -f "/bags/$NAME/metadata.yaml" >/dev/null 2>&1; then
-    ok "wrote docker/bags/$NAME/ (metadata.yaml + *.mcap)"
-    printf "  replay it: scripts/workshop run --template B --bag /bags/%s --rmw cyclone,fastdds,zenoh --scale 3 --duration 30\n" "$NAME"
-else
+METADATA="$DOCKER_ROOT/bags/$NAME/metadata.yaml"
+if [[ ! -f "$METADATA" ]]; then
     fail "bags/$NAME/metadata.yaml not found - check the container logs (compose logs $SVC)"
     exit 1
 fi
+
+# rosbag2 writes the bag-wide total before the per-topic counts.
+total_messages="$(awk '/message_count:/ { print $2; exit }' "$METADATA")"
+if [[ "${total_messages:-0}" -eq 0 ]]; then
+    fail "bags/$NAME recorded 0 messages, so a replay would publish nothing - check the container logs (compose logs $SVC)"
+    exit 1
+fi
+
+ok "wrote docker/bags/$NAME/ ($total_messages messages)"
+printf "  replay it: scripts/workshop run --template B --bag /bags/%s --rmw cyclone,fastdds,zenoh --scale 3 --duration 30\n" "$NAME"

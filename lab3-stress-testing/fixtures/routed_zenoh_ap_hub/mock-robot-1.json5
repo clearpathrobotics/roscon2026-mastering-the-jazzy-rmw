@@ -1,10 +1,9 @@
-// Routed shared-medium topology: every node is a Zenoh client of the router
-// (rmw_zenohd) running on wifi-ap. Docker DNS resolves `wifi-ap` to its IP on
-// the caller's own subnet, so this one endpoint works from every node.
-// Robot-to-robot traffic goes robot -> router (on the AP) -> robot, crossing
-// the AP. Static (not generated): identical for every N, unlike the Cyclone/
-// Fast DDS unicast peer lists in discovery/generated/, which must list every
-// endpoint and so change size with N.
+// Routed shared-medium topology, robot session config. This ROS node connects to
+// its own host's Zenoh router at tcp/localhost:7447 (mock-robot-N-router.json5);
+// that router uplinks to the wifi-ap hub, so only genuinely remote traffic crosses
+// the AP. Static (not generated): the content is identical for every N, unlike the
+// Cyclone/Fast DDS unicast peer lists, which must enumerate every endpoint and so
+// change size with N.
 {
   // Peer mode is rmw_zenoh's default and the reason this deployment is fair: the local
   // router is used for DISCOVERY and host-to-host forwarding, but sessions on the same

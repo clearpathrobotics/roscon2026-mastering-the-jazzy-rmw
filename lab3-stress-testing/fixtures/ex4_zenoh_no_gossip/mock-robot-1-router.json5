@@ -1,9 +1,0 @@
-{
-  mode: "router",
-  listen: { endpoints: ["tcp/0.0.0.0:7447"] },
-  scouting: {
-    multicast: { enabled: false, autoconnect: { router: ["router", "peer"], peer: ["router", "peer"] } },
-    gossip: { enabled: false, autoconnect: { router: ["router", "peer"], peer: ["router", "peer"] } },
-  },
-  transport: { shared_memory: { enabled: false } },
-}

@@ -57,17 +57,16 @@ esac
 # --rmw-directory (scripts/workshop up): use a pre-built config directory for the
 # selected RMW instead of generating it - the caller's fixture, not ours. Only the
 # selected RMW's directory is affected; the other two still generate normally
-# (only the RMW named by RMW_IMPLEMENTATION is ever active at runtime). Only the
-# topology/RMW combinations an exercise actually needs are wired up below
-# (flat+cyclone for Lab 3 Ex1's mixed-config fleet, routed+zenoh for Ex4's
-# gossip/multicast A/B) - extend the per-topology generators as new needs arise.
+# (only the RMW named by RMW_IMPLEMENTATION is ever active at runtime). All nine
+# topology/RMW combinations are wired below: each topology (star, flat, routed)
+# accepts an override for any of the three RMWs (cyclone, fast, zenoh).
 RMW_OVERRIDE_DIR="${RMW_OVERRIDE_DIR:-}"
 if [[ -n "$RMW_OVERRIDE_DIR" ]]; then
     RMW_OVERRIDE_DIR="$(cd "$RMW_OVERRIDE_DIR" 2>/dev/null && pwd)" || {
         echo "--rmw-directory: '$RMW_OVERRIDE_DIR' does not exist" >&2; exit 2; }
     case "$TOPO:$RMW_DIRNAME" in
-        flat:cyclone|routed:zenoh) ;;
-        *) echo "--rmw-directory is not wired up for $TOPO+$RMW_DIRNAME yet (only flat+cyclone, routed+zenoh)" >&2
+        star:cyclone|star:fast|star:zenoh|flat:cyclone|flat:fast|flat:zenoh|routed:cyclone|routed:fast|routed:zenoh) ;;
+        *) echo "--rmw-directory is not wired up for $TOPO+$RMW_DIRNAME yet" >&2
            exit 2 ;;
     esac
 fi
@@ -299,23 +298,34 @@ gen_star() {
     done
     obs_ifaces="${obs_ifaces%,}"
     obs_zrouters="${obs_zrouters%,}"
-    write_cyclone "$rdir/cyclone/observer.xml" false "$obs_ifaces" \
+    # Per-node full-set override (like routed): for the active RMW, skip the generated
+    # writes and install the fixture's numbered files after the loop below.
+    local cyc_override_files=(observer.xml) fast_override_files=(observer.xml) zenoh_override_files=(observer.json5)
+    override_active cyclone || write_cyclone "$rdir/cyclone/observer.xml" false "$obs_ifaces" \
         "        <Peer address=\"localhost\"/>"$'\n'"${obs_peers%$'\n'}"
-    write_fast  "$rdir/fast/observer.xml" "$obs_ifaces" ""
+    override_active fast || write_fast  "$rdir/fast/observer.xml" "$obs_ifaces" ""
     # Spokes are isolated with multicast off, so the observer explicitly dials every
     # robot's local rmw_zenohd router to discover the whole fleet.
-    write_zenoh "$rdir/zenoh/observer.json5" peer "$obs_ifaces" "$obs_zrouters" false 7447
+    override_active zenoh || write_zenoh "$rdir/zenoh/observer.json5" peer "$obs_ifaces" "$obs_zrouters" false 7447
     for k in $(seq 1 "$N"); do
         robot_ip="$(addr "172.30.$((10 + k)).$((10 + k))" "MOCK_ROBOT_${k}_IP")"
         obs_ip="$(addr "172.30.$((10 + k)).20" "OBSERVER_IP_BR$k")"
-        write_cyclone "$rdir/cyclone/mock-robot-$k.xml" false "$robot_ip" \
+        override_active cyclone || write_cyclone "$rdir/cyclone/mock-robot-$k.xml" false "$robot_ip" \
             "        <Peer address=\"localhost\"/>"$'\n'"        <Peer address=\"$obs_ip\"/>"
-        write_fast  "$rdir/fast/mock-robot-$k.xml" "$robot_ip" ""
+        override_active fast || write_fast  "$rdir/fast/mock-robot-$k.xml" "$robot_ip" ""
         # Robot nodes are clients of the robot's OWN local router; the observer
         # (configured separately) dials each robot router on its spoke IP.
-        write_zenoh        "$rdir/zenoh/mock-robot-$k.json5" client "" "tcp/localhost:7447"
-        write_zenoh_router "$rdir/zenoh/mock-robot-$k-router.json5" "" false
+        if ! override_active zenoh; then
+            write_zenoh        "$rdir/zenoh/mock-robot-$k.json5" client "" "tcp/localhost:7447"
+            write_zenoh_router "$rdir/zenoh/mock-robot-$k-router.json5" "" false
+        fi
+        cyc_override_files+=("mock-robot-$k.xml")
+        fast_override_files+=("mock-robot-$k.xml")
+        zenoh_override_files+=("mock-robot-$k.json5" "mock-robot-$k-router.json5")
     done
+    if override_active cyclone; then install_rmw_override "$rdir/cyclone" "${cyc_override_files[@]}"; fi
+    if override_active fast;    then install_rmw_override "$rdir/fast"    "${fast_override_files[@]}"; fi
+    if override_active zenoh;   then install_rmw_override "$rdir/zenoh"   "${zenoh_override_files[@]}"; fi
 
     {
     cat <<EOF
@@ -422,13 +432,24 @@ gen_flat() {
         write_cyclone "$rdir/cyclone/mock-robot.xml" true "" ""
         write_cyclone "$rdir/cyclone/observer.xml" true "" ""
     fi
-    write_fast "$rdir/fast/mock-robot.xml" "" ""
-    write_fast "$rdir/fast/observer.xml" "" ""
+    # Fast/Zenoh share one config across all scaled robots (no per-robot distinction on
+    # the flat bus), so an override replaces those shared files directly - the compose
+    # env already points every robot at them.
+    if override_active fast; then
+        install_rmw_override "$rdir/fast" mock-robot.xml observer.xml
+    else
+        write_fast "$rdir/fast/mock-robot.xml" "" ""
+        write_fast "$rdir/fast/observer.xml" "" ""
+    fi
     # Each robot is a client of its OWN local rmw_zenohd router (multicast lets the
     # routers find each other on the flat bus); the observer keeps its peer session.
-    write_zenoh        "$rdir/zenoh/mock-robot.json5" client "" "tcp/localhost:7447"
-    write_zenoh_router "$rdir/zenoh/mock-robot-router.json5" "" true
-    write_zenoh        "$rdir/zenoh/observer.json5" peer "" ""
+    if override_active zenoh; then
+        install_rmw_override "$rdir/zenoh" mock-robot.json5 mock-robot-router.json5 observer.json5
+    else
+        write_zenoh        "$rdir/zenoh/mock-robot.json5" client "" "tcp/localhost:7447"
+        write_zenoh_router "$rdir/zenoh/mock-robot-router.json5" "" true
+        write_zenoh        "$rdir/zenoh/observer.json5" peer "" ""
+    fi
 
     {
     cat <<EOF
@@ -469,6 +490,7 @@ EOF
       HALF_SCAN: "\${HALF_SCAN:-0}"
       MOCK_USE_MECANUM: \${DEFAULT_GROUP_USE_MECANUM:-false}
       MOCK_RUN_PILOT: "\${MOCK_RUN_PILOT:-true}"
+      MOCK_START_DELAY: "\${MOCK_START_DELAY:-0}"
       WORKLOAD: \${WORKLOAD:-mock}
     command: ["bash", "/scripts/run_mock_robot.sh"]
 EOF
@@ -522,15 +544,20 @@ gen_routed() {
     fast_peers+="          <locator><udpv4><address>$(addr "172.40.$CONSOLE_IDX.10" "OBSERVER_IP")</address></udpv4></locator>  <!-- observer -->"
     obs_zrouters=""
     local zenoh_override_files=(observer.json5)
+    local cyc_override_files=(observer.xml) fast_override_files=(observer.xml)
     for k in $(seq 1 "$N"); do
         node="mock-robot-$k"
-        write_cyclone "$rdir/cyclone/$node.xml" false auto "$cyc_peers"
-        write_fast    "$rdir/fast/$node.xml" "" "$fast_peers"
+        # Each RMW's per-robot file is generated unless a --rmw-directory override for
+        # that RMW is active, in which case install_rmw_override drops the fixture's file
+        # in instead. The numbered per-robot naming already matches what a fixture must
+        # provide (e.g. Lab 3 Ex4's zenoh gossip/multicast A/B fixture).
+        override_active cyclone || write_cyclone "$rdir/cyclone/$node.xml" false auto "$cyc_peers"
+        override_active fast    || write_fast    "$rdir/fast/$node.xml" "" "$fast_peers"
+        cyc_override_files+=("$node.xml")
+        fast_override_files+=("$node.xml")
         # Robot nodes are clients of the robot's OWN router; the router just listens
         # (the observer dials it across the AP), so the robot keeps running locally
         # even if the AP hop drops - no dependency on a hub daemon on the wifi-ap.
-        # Lab 3 Ex4's gossip/multicast A/B overrides this router's file only - the
-        # numbered per-robot naming already matches what a fixture must provide.
         if ! override_active zenoh; then
             write_zenoh        "$rdir/zenoh/$node.json5" client "" "tcp/localhost:7447"
             write_zenoh_router "$rdir/zenoh/$node-router.json5" "" false
@@ -541,8 +568,16 @@ gen_routed() {
     obs_zrouters="${obs_zrouters%,}"
     # Observer reaches every robot's router across the AP (L3), discovering the
     # whole fleet without depending on a Zenoh hub daemon on the wifi-ap.
-    write_cyclone "$rdir/cyclone/observer.xml" false auto "$cyc_peers"
-    write_fast    "$rdir/fast/observer.xml" "" "$fast_peers"
+    if override_active cyclone; then
+        install_rmw_override "$rdir/cyclone" "${cyc_override_files[@]}"
+    else
+        write_cyclone "$rdir/cyclone/observer.xml" false auto "$cyc_peers"
+    fi
+    if override_active fast; then
+        install_rmw_override "$rdir/fast" "${fast_override_files[@]}"
+    else
+        write_fast "$rdir/fast/observer.xml" "" "$fast_peers"
+    fi
     if override_active zenoh; then
         install_rmw_override "$rdir/zenoh" "${zenoh_override_files[@]}"
     else

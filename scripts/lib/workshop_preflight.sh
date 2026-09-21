@@ -101,6 +101,30 @@ _preflight_routed_modules() {
     return "$rc"
 }
 
+# lab2 captures + lab4 bags/captures must be writable by the container that captures into
+# them; a dir left root-owned by an earlier run blocks that and the harness cannot chmod it
+# without sudo. Warn (don't block) with the exact fix.
+_preflight_capture_dirs() {
+    local d
+    for d in "$REPO_ROOT/lab2-on-the-wire/captures" "$DOCKER_ROOT/bags" "$DOCKER_ROOT/captures"; do
+        [[ -d "$d" && ! -O "$d" && ! -w "$d" ]] && \
+            warn "capture dir $d is owned by another user; captures/bags may fail - run: sudo chmod 1777 $d"
+    done
+    return 0
+}
+
+# Compose reads RMW_IMPLEMENTATION from the calling shell before docker/.env, so an export
+# left in ~/.bashrc silently changes the RMW of every container started without an explicit one.
+_preflight_host_rmw() {
+    local shell_rmw="${RMW_IMPLEMENTATION:-}" env_file_rmw
+    [[ -n "$shell_rmw" ]] || return 0
+    env_file_rmw="$(sed -n 's/^RMW_IMPLEMENTATION=//p' "$DOCKER_ROOT/.env" 2>/dev/null)"
+    env_file_rmw="${env_file_rmw:-rmw_cyclonedds_cpp}"
+    [[ "$shell_rmw" == "$env_file_rmw" ]] && return 0
+    warn "this shell exports RMW_IMPLEMENTATION=$shell_rmw, which overrides docker/.env ($env_file_rmw) - run: unset RMW_IMPLEMENTATION"
+    return 0
+}
+
 workshop_preflight() {
     local topology="$1" rc=0
 
@@ -122,6 +146,8 @@ workshop_preflight() {
     fi
     _preflight_ports "$topology" || rc=1
     _preflight_images "$topology" || rc=1
+    _preflight_capture_dirs
+    _preflight_host_rmw
     if [[ "$topology" == routed ]]; then
         _preflight_routed_modules || rc=1
     fi

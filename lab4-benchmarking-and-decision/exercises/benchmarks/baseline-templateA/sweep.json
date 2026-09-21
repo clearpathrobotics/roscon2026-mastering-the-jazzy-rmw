@@ -1,0 +1,20 @@
+{
+  "sweep_id": "20260919_120636_502424956_892840_sweep",
+  "templates": [
+    "A"
+  ],
+  "rmws": [
+    "cyclone",
+    "fastdds",
+    "zenoh"
+  ],
+  "scenarios_override": [
+    "S0"
+  ],
+  "scale": 3,
+  "duration": 20,
+  "rate": 1000,
+  "msg": "Array1k",
+  "bag": null,
+  "started": "2026-09-19T16:06:36.535545+00:00"
+}

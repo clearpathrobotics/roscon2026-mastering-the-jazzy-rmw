@@ -8,6 +8,7 @@ Lab 4 independently performs the repeatable experiments and RMW decision. This R
 covers the setup, the topology, and the reference material behind the
 [Exercises](#exercises) - it does not repeat their steps.
 
+<a id="before-you-begin"></a>
 <details>
 <summary><b>Setup:</b> bring up the fleet and verify shaping modules</summary>
 
@@ -36,7 +37,7 @@ Shaping is optional for the clean reference (`clear`), but the impaired profiles
 `sch_netem`, `sch_htb`, `ifb`, and `act_mirred`. If a module cannot be loaded, the
 topology can still run, but its impairment results are not meaningful.
 
-If `preflight.sh` reports a missing module, use the clean reference (`clear`) or a
+If `scripts/workshop preflight` reports a missing module, use the clean reference (`clear`) or a
 recorded capture; the impairment exercises will not be meaningful.
 
 Lab 3 uses two deployment phases, not two competing impaired topologies:
@@ -131,10 +132,10 @@ Used in:
 - [Exercise 4](exercises/4_repeat_with_zenoh.md), for the TCP transport comparison.
 
 Cyclone/Fast DDS discovery (every peer's IP, so it changes with N) is generated
-per run from `scripts/templates/*.xml.tmpl`; Zenoh's routed config never depends
-on N (every node is just a client of the one router), so it's a static file at
-`scripts/discovery/zenoh/routed-client.json5`. Inspect whatever the current run
-actually generated - compose override included - with:
+per run from `scripts/templates/*.xml.tmpl`; Zenoh's routed config is generated too,
+but its content never depends on N (every node just connects to its own host's
+router at `tcp/localhost:7447`). Inspect whatever the current run actually
+generated - compose override included - with:
 
 ```bash
 scripts/workshop -t routed netem
@@ -230,6 +231,14 @@ used to draw the robot sprite and its trail. Each mock robot has an independent 
 origin, so the compositor places those local coordinate systems on a deterministic
 4 m grid before fitting the combined image; the relative placement is illustrative,
 while each robot's motion and freeze are real.
+
+In the mock robot stack, `robot_localization`'s `ekf_node` publishes that moving
+`/<robot>/odom -> /<robot>/base_link` transform. `robot_state_publisher` publishes the
+robot model's fixed-link transforms on `/tf_static`. The launch files deliberately keep
+`/tf` and `/tf_static` global rather than putting them under each robot namespace, so a
+subscriber to `/tf` can receive transforms from every reachable robot. That is why a
+`ros2 topic hz /tf` command inside one robot is an aggregate observation, not a clean
+measurement of that robot's publisher.
 
 At every 10 Hz render, the `observer` container calculates
 $\text{state freshness} = \text{observer time} - \text{TF header stamp}$. It writes the
