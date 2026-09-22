@@ -339,10 +339,10 @@ container runs as a fixed non-root UID 1000 user, so if the host user's UID diff
 add `user: "$(id -u):$(id -g)"` to the service or chown the captures directory to
 match.
 
-`lab2-on-the-wire/scripts/lab2.sh`'s `_dds_iface()` auto-detects the capture interface through
-`DDS_SUBNET`, which is hardcoded to this repo's flat mock bridge subnet (`172.31.0.x`).
-That's why `scripts/workshop` itself doesn't generalize to a real robot. It isn't a limitation
-of the `tshark -i` command above.
+`docker/scripts/run_observer.sh`'s `capture_iface()` picks the capture interface as the
+first non-loopback link inside the container. That's why `scripts/workshop` itself doesn't
+generalize to a real robot: it docker-execs into a container named `observer`. It isn't a
+limitation of the `tshark -i` command above.
 
 ## Licence
 
@@ -352,7 +352,7 @@ are **GPL-2.0-or-later**:
 
     index.html    root.js    sharkd_dict.js
 
-Everything else here, the guide, the Dockerfile, the compose files, `demo`,
+Everything else here, the guide, the Dockerfile, the compose files,
 `record-fixtures.sh`, `colorfilters`, the fixtures and the tests, is Apache-2.0.
 
 The GPL-2.0 text is in [`LICENSE`](LICENSE). [`THIRD-PARTY.md`](THIRD-PARTY.md) records what we

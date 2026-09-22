@@ -1,0 +1,191 @@
+{
+  "configById": {
+    "Joystick Panel.Joystick!2jqxfg2": {
+      "dataSource": "keyboard",
+      "subJoyTopic": "/robot_1/joy",
+      "gamepadId": 0,
+      "publishMode": true,
+      "pubJoyTopic": "/robot_1/joy",
+      "publishFrameId": "",
+      "displayMode": "custom",
+      "debugGamepad": false,
+      "layoutName": "xbox",
+      "mapping_name": "TODO"
+    },
+    "3D!18i6zy7": {
+      "layers": {
+        "845139cb-26bc-40b3-8161-8ab60af4baf5": {
+          "visible": true,
+          "frameLocked": true,
+          "label": "Grid",
+          "instanceId": "845139cb-26bc-40b3-8161-8ab60af4baf5",
+          "layerId": "foxglove.Grid",
+          "size": 10,
+          "divisions": 10,
+          "lineWidth": 1,
+          "color": "#248eff",
+          "position": [
+            0,
+            0,
+            0
+          ],
+          "rotation": [
+            0,
+            0,
+            0
+          ],
+          "order": 1
+        },
+        "919aa481-e1c3-463a-bb83-6cad7c382160": {
+          "visible": true,
+          "frameLocked": true,
+          "label": "URDF",
+          "instanceId": "919aa481-e1c3-463a-bb83-6cad7c382160",
+          "layerId": "foxglove.Urdf",
+          "sourceType": "topic",
+          "url": "",
+          "filePath": "",
+          "parameter": "",
+          "topic": "/robot_1/robot_description",
+          "framePrefix": "",
+          "displayMode": "auto",
+          "fallbackColor": "#ffffff",
+          "order": 2
+        },
+        "4d1e3123-046d-4c81-8ba4-04bf2ff4eb4d": {
+          "visible": true,
+          "frameLocked": true,
+          "label": "URDF",
+          "instanceId": "4d1e3123-046d-4c81-8ba4-04bf2ff4eb4d",
+          "layerId": "foxglove.Urdf",
+          "sourceType": "topic",
+          "url": "",
+          "filePath": "",
+          "parameter": "",
+          "topic": "/robot_1/world_description",
+          "framePrefix": "",
+          "displayMode": "auto",
+          "fallbackColor": "#ffffff",
+          "order": 3
+        }
+      },
+      "cameraState": {
+        "perspective": true,
+        "distance": 13.966745921858415,
+        "phi": 0.00005729577951308232,
+        "thetaOffset": 89.75463484642245,
+        "targetOffset": [
+          -0.11292549017703979,
+          0.4112386859717934,
+          -4.2209543878973996e-18
+        ],
+        "target": [
+          0,
+          0,
+          0
+        ],
+        "targetOrientation": [
+          0,
+          0,
+          0,
+          1
+        ],
+        "fovy": 45,
+        "near": 0.5,
+        "far": 5000
+      },
+      "followMode": "follow-pose",
+      "followTf": "world",
+      "scene": {
+        "ignoreColladaUpAxis": false,
+        "meshUpAxis": "z_up",
+        "labelScaleFactor": 0.61,
+        "syncCamera": true,
+        "transforms": {
+          "editable": false,
+          "showLabel": false
+        }
+      },
+      "transforms": {},
+      "topics": {
+        "/robot_1/scan": {
+          "visible": true,
+          "colorField": "range",
+          "colorMode": "colormap",
+          "colorMap": "turbo",
+          "pointSize": 15
+        }
+      },
+      "publish": {
+        "type": "point",
+        "poseTopic": "/move_base_simple/goal",
+        "pointTopic": "/clicked_point",
+        "poseEstimateTopic": "/initialpose",
+        "poseEstimateXDeviation": 0.5,
+        "poseEstimateYDeviation": 0.5,
+        "poseEstimateThetaDeviation": 0.26179939
+      },
+      "imageMode": {}
+    },
+    "Image!1khyg8h": {
+      "cameraState": {
+        "distance": 20,
+        "perspective": true,
+        "phi": 60,
+        "target": [
+          0,
+          0,
+          0
+        ],
+        "targetOffset": [
+          0,
+          0,
+          0
+        ],
+        "targetOrientation": [
+          0,
+          0,
+          0,
+          1
+        ],
+        "thetaOffset": 45,
+        "fovy": 45,
+        "near": 0.5,
+        "far": 5000
+      },
+      "followMode": "follow-pose",
+      "scene": {},
+      "transforms": {},
+      "topics": {},
+      "layers": {},
+      "publish": {
+        "type": "point",
+        "poseTopic": "/move_base_simple/goal",
+        "pointTopic": "/clicked_point",
+        "poseEstimateTopic": "/initialpose",
+        "poseEstimateXDeviation": 0.5,
+        "poseEstimateYDeviation": 0.5,
+        "poseEstimateThetaDeviation": 0.26179939
+      },
+      "imageMode": {
+        "imageTopic": "/robot_1/sensor_0/camera/image_raw",
+        "calibrationTopic": "/robot_1/sensor_0/camera/camera_info"
+      }
+    }
+  },
+  "globalVariables": {},
+  "userNodes": {},
+  "playbackConfig": {
+    "speed": 1
+  },
+  "layout": {
+    "direction": "row",
+    "first": {
+      "first": "Joystick Panel.Joystick!2jqxfg2",
+      "second": "Image!1khyg8h",
+      "direction": "column"
+    },
+    "second": "3D!18i6zy7",
+    "splitPercentage": 18.50079589066513
+  }
+}

@@ -16,7 +16,7 @@
 
 set -uo pipefail
 
-FORMAT="RMWCHECK/2"
+FORMAT="RMWCHECK/3"
 MIN_COMPOSE="2.20"
 MIN_DISK_GB=15
 MIN_RAM_GB=16
@@ -288,6 +288,15 @@ case "$os_kind" in
         ;;
 esac
 
+head_ "Python (Lab 4's optional 'run your own data')"
+if python3 -c 'import yaml' >/dev/null 2>&1; then
+    pyyaml="yes"
+    ok "python3 with PyYAML."
+else
+    pyyaml="no"
+    warn "python3 with PyYAML is missing. Only Lab 4's optional 'run your own data' exercise needs it; install python3-yaml if you plan to do it."
+fi
+
 if [ "$docker_ready" != "yes" ]; then
     verdict="no-docker"
 elif [ "$is_docker_desktop" = "yes" ]; then
@@ -370,9 +379,9 @@ info "container cannot reach the network. Fix that first, because pulling the wo
 info "images needs the same connection."
 
 head_ "Paste this line into the pre-workshop form:"
-printf '%s os=%s arch=%s kernel=%s cpus=%s ram=%s disk=%s docker=%s compose=%s desktop=%s netem=%s ifb=%s verdict=%s\n' \
+printf '%s os=%s arch=%s kernel=%s cpus=%s ram=%s disk=%s docker=%s compose=%s desktop=%s netem=%s ifb=%s pyyaml=%s verdict=%s\n' \
     "$FORMAT" "$os_kind" "$ARCH" "$KERNEL" "$cpus" "$ram" "$disk" \
-    "$docker_ver" "$compose_ver" "$is_docker_desktop" "$netem" "$ifb" "$verdict"
+    "$docker_ver" "$compose_ver" "$is_docker_desktop" "$netem" "$ifb" "$pyyaml" "$verdict"
 printf '\n'
 
 # Always 0. A non-zero exit reads as "the script broke" to someone who would not know better.

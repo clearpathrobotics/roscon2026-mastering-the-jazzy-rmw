@@ -13,8 +13,11 @@ Build an evidence chain, in this order: **symptom -> monitoring signal -> hypoth
 ## Steps
 
 1. Exercise 2 healed the AP so you could observe recovery. Reintroduce the incident,
-   then record the symptom in Lichtblick: which robots have stale ribbons, freeze, or
-   jump? Leave the map open, but move to Netdata for the next observation.
+   then record what you see in the Lichtblick fleet map: which robots have stale ribbons,
+   freeze, or jump? Treat the map as the operator's symptom display, not as proof that
+   the fleet manager or a robot's publisher is failing. Slow or jittery robots may be
+   caused by late data, missing data, or local computation. Do not choose the cause yet;
+   leave the map open, but move to Netdata for the next observation.
 
    ```bash
    cd "$(git rev-parse --show-toplevel)"
@@ -35,13 +38,23 @@ Build an evidence chain, in this order: **symptom -> monitoring signal -> hypoth
    backlog grows, the immediate constraint is compute, not the link. Write down which
    signal supports your conclusion.
 
-4. Rule out a failed or slowed source before blaming the network. Each robot broadcasts
-   its moving transform on the shared `/tf` topic, but that topic mixes every robot's
-   transforms and, under `routed`, robots can reach each other through `wifi-ap` too.
-   A "local" `/tf` reading at mock-robot-1 is therefore not purely local. Use the namespaced
-   state topic `/robot_1/odometry/filtered` instead (50 Hz): only mock-robot-1 publishes it,
-   so it cannot pick up another robot's traffic. In separate terminals, measure the same
-   stream locally at its source and after it crosses the AP to the `observer` container:
+4. **Test the source-versus-transport hypothesis.** The topics at play are:
+   `/tf`, which drives the map but mixes transforms from every robot, and
+   `/robot_1/odometry/filtered`, a namespaced state topic published only by
+   `mock-robot-1` at about 50 Hz. The mock robot's `robot_localization` `ekf_node` is
+   the publisher of the moving odometry transform; `robot_state_publisher` supplies
+   fixed-link transforms on `/tf_static`. A reading of `/tf` inside `mock-robot-1` is
+   not purely local because routed robots can reach one another through `wifi-ap`.
+
+   The map looks slow or jittery. What would you measure to decide whether the source is
+   actually slow, or whether its data is being delayed after it leaves the robot?
+   **Hint:** measure the same single-publisher topic once at `mock-robot-1` and once at
+   `observer`, then compare the two rates under `netem bad` and after `netem good`.
+
+   <details>
+   <summary>Answer: compare the source and observer readings</summary>
+
+   Use `ros2 topic hz` in separate terminals on `/robot_1/odometry/filtered`:
 
    ```bash
    docker exec mock-robot-1 bash -c 'source /opt/ros/jazzy/setup.bash && timeout 20 ros2 topic hz /robot_1/odometry/filtered'
@@ -50,13 +63,16 @@ Build an evidence chain, in this order: **symptom -> monitoring signal -> hypoth
 
    The local rate is the producer-side reference. If it remains steady while the
    observer rate stalls, falls, has long gaps, or receives no samples for the whole
-   20-second window under `ap bad`, the source is not the immediate bottleneck. The
-   initial `does not appear to be published yet` warning means this new reader has not
-   received a sample yet; discovery, endpoint matching, or delivery can all cause it.
-   It can appear before samples start. `ros2 topic hz` measures received messages after
-   its own subscription starts, so compare the two readings rather than expecting an
-   exact configured rate. Repeat the observer command after `ap good`: delivery
-   returning with the healthy profile confirms the AP path.
+   20-second window under `netem bad`, the source is not the immediate bottleneck. The
+   initial `does not appear to be published yet` warning only means this new reader has
+   not received a sample yet; discovery, endpoint matching, or delivery can all cause it.
+   `ros2 topic hz` measures messages received after its subscription starts, so compare
+   the two readings rather than expecting an exact configured rate. Repeat the observer
+   command after `netem good`: recovery with the healthy profile supports the AP-path
+   hypothesis. See the [Lab 3 README's TF explanation](../README.md#how-the-operator-image-and-freshness-values-are-produced)
+   for the complete map and publisher path.
+
+   </details>
 
 5. Confirm whether the user-visible symptom is stale ROS traffic. From the `observer`
    container, first verify that the map diagnostic exists, then inspect the values built
@@ -66,7 +82,7 @@ Build an evidence chain, in this order: **symptom -> monitoring signal -> hypoth
    docker exec observer bash -c 'source /opt/ros/jazzy/setup.bash && ros2 topic list --no-daemon' | grep -Fx /fleet_map/state_freshness
    docker exec observer bash -c 'source /opt/ros/jazzy/setup.bash && timeout 20 ros2 topic hz /fleet_map/state_freshness'
    docker exec observer bash -c 'source /opt/ros/jazzy/setup.bash && timeout 10 ros2 topic echo --once /fleet_map/state_freshness'
-   scripts/workshop -t routed netem list
+   scripts/workshop -t routed netem
    ```
 
    If the first command prints nothing, just run it again: `--no-daemon` starts a fresh
@@ -77,16 +93,27 @@ Build an evidence chain, in this order: **symptom -> monitoring signal -> hypoth
    Use `hz` only to confirm that the local map diagnostic is alive. Its publication rate
    follows the map render loop and need not change with remote TF delivery. The `echo`
    output is the evidence: record each robot's `state_freshness_ms` and status. Under
-   `ap bad`, expect `DEGRADED` or `STALE` values in the hundreds of milliseconds or
-   higher; after `ap good`, they should return to `FRESH` values in the tens of
+   `netem bad`, expect `DEGRADED` or `STALE` values in the hundreds of milliseconds or
+   higher; after `netem good`, they should return to `FRESH` values in the tens of
    milliseconds. That change connects the operator symptom to received state over the
    transport path. `state_freshness_ms` is state age, not a one-way latency measurement.
 
 6. **Confirm delivered traffic when Netdata and the ROS CLI disagree.** Lab 2 read
-    captures through WebShark's GUI, frame by frame. Here, measure traffic that has
-    survived the shared queue and is leaving `wifi-ap` for the operator. Resolve the AP
-    interface facing the `observer` subnet, then capture only packets destined for that
-    subnet:
+   captures through WebShark's GUI, frame by frame. Here, measure traffic that has
+   survived the shared queue and is leaving `wifi-ap` for the operator.
+
+   **Question: before looking at the command, what must this capture select?** Think
+   about which `wifi-ap` interface is useful, which direction proves that packets made
+   it through the shared queue, and which destination filter limits the result to the
+   `observer` subnet. What short time-bucketed report would let you compare two
+   windows?
+
+   <details>
+   <summary>Answer: resolve the egress interface, filter the destination subnet, and bucket the counts</summary>
+
+   Resolve the AP interface facing the `observer` subnet, then capture only packets
+   destined for that subnet. `-z io,stat,5` prints five-second buckets so you can compare
+   delivered traffic under the two profiles:
 
    ```bash
    docker exec wifi-ap bash -lc '
@@ -98,30 +125,50 @@ Build an evidence chain, in this order: **symptom -> monitoring signal -> hypoth
    '
    ```
 
-   The table now counts delivered packets toward `observer`, after the shared shaper, so
-   it is relevant to the operator symptom. Compare windows with the same subscribers
-   and offered load: less delivered traffic under `ap bad` supports the transport
-   hypothesis. Do not expect its byte total to fall by `ap bad`'s configured loss
-   percentage: this egress-only capture counts packets that survived the shaper, not
-   packets offered to it. The profile also affects every peer flow in both directions,
-   while DDS repair and background traffic vary between windows. Use the AP queue's
-   sampled drop rate for the loss signal, and pair it with this capture and the
-   state-freshness result. Packet inspection is a targeted confirmation step, not the
-   continuous monitoring tool - reach for it only when Netdata and the ROS CLI disagree.
+   **What does this tell you exactly?** It counts packets and bytes that reached the
+   AP's interface toward `observer`, grouped into five-second buckets. Compare the
+   same capture under `netem good` and `netem bad`, with the same subscribers and offered
+   load. A lower delivered count or byte rate under `bad` confirms that fewer packets
+   survived the shared queue on the way to the observer subnet.
+
+   This is an egress measurement for the whole subnet: it does not identify a ROS topic,
+   prove that a DDS sample was complete or delivered to the application, measure the
+   robot's source rate, or report the AP's configured loss percentage. Pair it with the
+   AP queue/drop signal and the observer's topic rate or state age to connect packet
+   delivery to the user-visible symptom.
+
+   Use the table for a controlled comparison, not as a direct loss percentage. Keep the
+   subscribers and offered load the same, then pair the result with the AP queue's
+   sampled drop rate and the observer's state-freshness result. The profile affects peer
+   traffic in both directions, and DDS repair plus background traffic can change the
+   byte total. Packet inspection is a targeted confirmation step, not the continuous
+   monitoring tool - reach for it when the higher-level signals leave the delivered
+   traffic path unclear.
+
+   </details>
+
    To narrow the capture to one RMW's traffic, see "Not sure how to build the step 6
    capture" below.
 
-7. **Measure the sensor class, not just the map.** With `ap bad` still applied, run the
+7. **Measure the sensor class, not just the map.** With `netem bad` still applied, run the
    inspector on the scan class and let it settle for two or three windows:
 
    ```bash
    docker exec -it observer bash -c 'source /opt/ros/jazzy/setup.bash && python3 /scripts/lab3/fleet_inspector.py --robots robot_1,robot_2,robot_3 --sensors scan --qos reliable'
    ```
 
-   Compared with the **healthy baseline** you recorded in
-   [Exercise 2, step 4](2_watch_a_healthy_link_fail.md) - about 10 Hz at ~6 ms age and
-   ~10 ms p95 - the rate holds up but the age collapses: readings near a second old,
-   against the 1000 ms threshold the map paints red:
+   **Question: before reading the result, what do you expect to change?** Compare the
+   rate, age, p95, and gaps with the healthy baseline from [Exercise 2, step
+   4](2_watch_a_healthy_link_fail.md). Will the scan source slow down, will samples
+   disappear, or will complete samples arrive late? Write down your prediction and what
+   evidence would distinguish those cases.
+
+   <details>
+   <summary>Answer: the rate can hold while age and p95 grow</summary>
+
+   The healthy baseline was about 10 Hz at ~6 ms age and ~10 ms p95. Under `netem bad`,
+   the rate can hold up while the age grows toward a second, against the 1000 ms
+   threshold the map paints red:
 
    ```text
    topic                                            Hz   age_ms   p95_ms     MB/s  gaps
@@ -129,14 +176,15 @@ Build an evidence chain, in this order: **symptom -> monitoring signal -> hypoth
    ```
 
    Messages are still arriving, so this is not a dead link. They are arriving *late*.
-   Write down why late-but-complete is a different failure from missing.
+   Late-but-complete data can be unusable for timely obstacle avoidance even though the
+   measured rate looks healthy. To confirm the age independently, `ros2 topic delay
+   /robot_1/scan` measures the same `header.stamp` difference from the same container;
+   Exercise 2 explains how each column is derived.
 
-   To confirm the age independently, `ros2 topic delay /robot_1/scan` measures the same
-   `header.stamp` difference from the same container; Exercise 2 explains how each column
-   is derived.
+   </details>
 
-8. **Ask what the robot promised.** Inspect the QoS the scan publisher actually
-   advertises:
+8. **Ask what the robot's publisher promises.** Inspect the QoS contract the robot scan publisher
+   actually offers to subscribers:
 
    ```bash
    docker exec observer bash -c 'source /opt/ros/jazzy/setup.bash && ros2 topic info -v /robot_1/scan'
@@ -157,6 +205,14 @@ Build an evidence chain, in this order: **symptom -> monitoring signal -> hypoth
    docker exec -it observer bash -c 'source /opt/ros/jazzy/setup.bash && python3 /scripts/lab3/fleet_inspector.py --robots robot_1,robot_2,robot_3 --sensors scan --qos best_effort'
    ```
 
+   **Question: what do you expect to trade away?** Predict how the scan's rate, age,
+   p95, and gaps will change when only the subscriber requests `best_effort`. Will the
+   observer receive fewer samples, fresher samples, or both? Explain why that result
+   would support or weaken the reliable-delivery hypothesis.
+
+   <details>
+   <summary>Answer: fresher samples, but a lower rate</summary>
+
    ```text
    topic                                            Hz   age_ms   p95_ms     MB/s  gaps
    /robot_1/scan                                   4.5     87.5    118.2    0.006     1
@@ -166,6 +222,8 @@ Build an evidence chain, in this order: **symptom -> monitoring signal -> hypoth
    plain sight: reliable requests repair for lost samples, while best effort discards
    them. For a lidar feeding obstacle avoidance, favouring current data over stale data
    is the better fit for this workload.
+
+   </details>
 
 10. **Move the fix into configuration.** The subscriber flag proved the theory, but the
     real fix belongs with the publisher, and it does not require touching node code.
@@ -183,7 +241,7 @@ Build an evidence chain, in this order: **symptom -> monitoring signal -> hypoth
       ```
 
       Each topic should report `Publisher count: 1`. Then edit
-      [`scripts/qos/sensor_qos.yaml`](../scripts/qos/sensor_qos.yaml) and set each
+      [`lab3-stress-testing/scripts/qos/sensor_qos.yaml`](../scripts/qos/sensor_qos.yaml) and set each
       robot's scan to `best_effort`:
 
     ```yaml
@@ -193,12 +251,12 @@ Build an evidence chain, in this order: **symptom -> monitoring signal -> hypoth
           /robot_1/scan:
             publisher:
               reliability: best_effort
-         /robot_2/scan:
+          /robot_2/scan:
             publisher:
-               reliability: best_effort
-         /robot_3/scan:
+              reliability: best_effort
+          /robot_3/scan:
             publisher:
-               reliability: best_effort
+              reliability: best_effort
     ```
 
     QoS binds when the publisher is created, so the robots must be recreated. Editing a
@@ -222,21 +280,33 @@ Build an evidence chain, in this order: **symptom -> monitoring signal -> hypoth
    Each should report `Reliability: BEST_EFFORT`. Now every subscriber benefits, not
    just the one you happened to run with a flag.
 
-11. **Escalate to the camera and observe overload handling.** Each robot can also publish
+11. **Optional, if time allows: escalate to the camera and observe overload handling.**
+   Each robot can also publish
    an ~850x1050 RGB frame at 10 Hz, about 2.7 MB per message - roughly 214 Mbit/s of
    payload from a single robot into a 100 Mbit/s medium. Nothing subscribes to it by
    default, and compositing it is the largest CPU cost on a robot, so the routed fleet
    starts with the camera switched off. Turn it on, and heal the AP so the only variable
-   is offered load. Keep the scan publishers `best_effort` from Step 10: the camera
-   publisher is separate and remains `RELIABLE` by default, so this test isolates
-   oversized offered load rather than reverting the scan QoS fix. `ap good` does **not**
+   is offered load. Leave the scan publishers `best_effort` as configured in Step 10;
+   do not change them back to `RELIABLE` for this experiment. The camera publisher is
+   separate and remains `RELIABLE` by default, so this test adds oversized offered load
+   without undoing the scan QoS fix. `netem good` does **not**
    remove shaping: it retains the shared 100 Mbit/s AP budget with only 0.1% baseline
-   loss. `ap bad` instead lowers that budget to 20 Mbit/s and adds 80 ms delay plus 15%
-   bursty loss. This step tests congestion caused by offered load alone:
+   loss. `netem bad` instead lowers that budget to 20 Mbit/s and adds 80 ms delay plus 15%
+   bursty loss.
+
+   **Question: what happens when the medium is healthy but the offered load is not?**
+   Before starting the camera, predict what one reliable camera subscription will do to
+   the AP throughput, queue backlog, qdisc drops, scan delivery, camera rate, and fleet
+   map. The camera is one publisher, but the AP is shared by every robot. What evidence
+   would show congestion rather than a robot or map failure?
+
+   This step tests congestion caused by offered load alone:
 
     ```bash
     scripts/workshop -t routed down
     MOCK_SENSOR_COUNT=1 scripts/workshop -t routed up 3 cyclone
+    scripts/workshop observer bridge
+    scripts/workshop lichtblick up
     scripts/workshop -t routed netem good
     ```
 
@@ -245,7 +315,7 @@ Build an evidence chain, in this order: **symptom -> monitoring signal -> hypoth
    then start the inspector:
 
    ```bash
-   docker exec -it observer bash -c 'source /opt/ros/jazzy/setup.bash && python3 /scripts/lab3/fleet_inspector.py --robots robot_1,robot_2,robot_3 --sensors both --max-camera 1'
+   docker exec -it observer bash -c 'source /opt/ros/jazzy/setup.bash && python3 /scripts/lab3/fleet_inspector.py --robots robot_1,robot_2,robot_3 --sensors both --max-camera 1 --qos best_effort'
    ```
 
    While it runs, confirm the camera subscription exists:
@@ -254,17 +324,26 @@ Build an evidence chain, in this order: **symptom -> monitoring signal -> hypoth
    docker exec observer bash -c 'source /opt/ros/jazzy/setup.bash && ros2 topic info -v /robot_1/sensor_0/camera/image_raw'
    ```
 
-   It should report one publisher and the inspector subscriber. Compare Netdata with
-   the baseline: the camera subscription should raise AP throughput and can create a
-   queue backlog and qdisc drops despite `ap good`. Then compare the inspector rows with
-   the Lichtblick map. The camera can report `0.0` Hz because a 2.7 MB frame is split
+   <details>
+   <summary>Answer: the camera overloads the shared queue even with a healthy profile</summary>
+
+   In Netdata, watch **Lab 3 AP Shared Throughput** and **Lab 3 AP Qdisc Drops** while
+   the inspector runs. Shared throughput is the traffic the AP actually forwards
+   through the shaped link; it should rise when the camera subscription adds offered
+   load, then flatten at the plateau this environment can actually sustain. The
+   configured 100 Mbit/s is an upper budget, not a promise that the chart will reach
+   100 Mbit/s; record the observed plateau and compare it with that budget. Qdisc drops are packets the
+   shared AP queue discards before forwarding; a rise means the offered load is
+   exceeding the available queue service, even though the profile is `netem good`.
+   Compare both charts with the baseline, then compare the inspector rows with the
+   Lichtblick map. The camera can report `0.0` Hz because a 2.7 MB frame is split
    into thousands of fragments and one lost fragment discards the whole frame. Interface
    accounting can show the robot offering about 29 MB/s once transport overhead is
    included, while `observer` receives about 0.3 MB/s.
 
    This is the lesson: the camera subscriber makes more than 214 Mbit/s of payload
    contend for a 100 Mbit/s shared queue, so it can create backlog and queue drops even
-   under `ap good`. Offered bytes are not useful data when fragmentation and loss prevent
+   under `netem good`. Offered bytes are not useful data when fragmentation and loss prevent
    complete frames from arriving. The inspector reports only scan and camera
    subscriptions; the Lichtblick map is driven separately by `/tf`, so `0.0` sensor rows
    do not mean the robots have stopped moving. Under overload, reliable scan delivery can also arrive in bursts:
@@ -277,6 +356,8 @@ Build an evidence chain, in this order: **symptom -> monitoring signal -> hypoth
    frozen map means the offered load exceeded that protection, and should be correlated
    with the AP queue/drop charts. Stop the inspector with Ctrl-C and the fleet recovers.
 
+   </details>
+
 <details>
 <summary>Answer: reading the evidence chain</summary>
 
@@ -287,9 +368,10 @@ enough because it is itself in-band traffic. Conversely, saturated CPU with a qu
 queue points to a host bottleneck. Use a Lab 2 capture when these signals conflict or
 when you need packet-level evidence for retransmission or loss.
 
-Steps 7-11 add a second lesson: the medium was not the only defect. A reliable sensor
-publisher converts loss into latency, and an oversized subscription converts a healthy
-link into a dead one. Impairment exposed both, but neither was caused by the impairment.
+Steps 7-10 add a second lesson: the medium was not the only defect. A reliable sensor
+publisher converts loss into latency. The optional Step 11 shows how an oversized
+subscription can convert a healthy link into a dead one. Impairment exposed the first
+defect, but neither was caused by the impairment.
 </details>
 
 ## What to report
@@ -298,16 +380,16 @@ Write five short statements: the observed map symptom; the Netdata signal; the l
 hypothesis; the ROS CLI or packet-level confirmation; and the root cause. State what
 evidence would have changed your conclusion.
 
-Then add the numbers from steps 7-11: scan age under `ap bad` as reliable versus best
-effort, and what one raw camera subscription did to the rest of the fleet on a healthy
-medium. Say which change you would actually ship, and which topics in *your* deployment
-are currently reliable because nobody chose - they just called `create_publisher` with a
-depth.
+Then add the numbers from steps 7-10: scan age under `netem bad` as reliable versus best
+effort. If time allows, also record what one raw camera subscription did to the rest of
+the fleet on a healthy medium. Say which change you would actually ship, and which topics
+in *your* deployment are currently reliable because nobody chose - they just called
+`create_publisher` with a depth.
 
 ## When it does not work
 
-**AP charts do not change after `ap bad`.** Check the profile and raw qdisc state with
-`scripts/workshop -t routed netem list`. If the system lacks shaping modules, preflight reports it and
+**AP charts do not change after `netem bad`.** Check the applied profile and its drop counter with
+`scripts/workshop -t routed netem`. If the system lacks shaping modules, preflight reports it and
 the impairment result is not meaningful.
 
 **`ros2 topic hz` reports no data.** First verify the source is alive from `mock-robot-1`:
@@ -316,7 +398,7 @@ the impairment result is not meaningful.
 docker exec mock-robot-1 bash -c 'source /opt/ros/jazzy/setup.bash && timeout 20 ros2 topic hz /robot_1/odometry/filtered'
 ```
 
-Then repeat the `observer` command after `ap good`. A steady source rate and recovery
+Then repeat the `observer` command after `netem good`. A steady source rate and recovery
 after healing the AP supports a transport problem; no source rate points to the
 producer, while no recovery on `observer` points to discovery or endpoint matching.
 
@@ -333,7 +415,8 @@ evidence you need. To narrow it to one RMW's traffic instead of the whole shared
 subnet: for the default `ROS_DOMAIN_ID=25`, the RTPS base is `7400 + 250 * 25 = 13650`,
 so a DDS-focused capture can use `-f "net 172.40.0.0/16 and udp portrange 13650-13849"`.
 For Zenoh, every node connects to the router over TCP (see
-`discovery/zenoh/routed-client.json5`), so use `-f "net 172.40.0.0/16 and tcp port 7447"`.
+`lab3-stress-testing/fixtures/routed_zenoh_ap_hub/mock-robot-1.json5`), so use
+`-f "net 172.40.0.0/16 and tcp port 7447"`.
 
 Leave the routed fleet running. [Exercise 4](4_repeat_with_zenoh.md) repeats the same
 incident over TCP, using Zenoh's default transport, to investigate what reliable

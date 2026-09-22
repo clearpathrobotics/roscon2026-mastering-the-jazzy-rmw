@@ -1,5 +1,8 @@
 # Beyond the wire
 
+To access the reference data and analysis scripts,
+see git branch `btw-results-reference`.
+
 A packet capture shows what crossed the link. It does not show what the
 application received, or which frames died in the kernel before they got there.
 Under loss those three numbers stop matching.

@@ -50,6 +50,16 @@ if [[ "${WORKLOAD:-}" == "bag" ]]; then
     exec bash /scripts/play_bag.sh
 fi
 
+# Exercise 1 only: hold this robot's ROS startup so the Netdata fleet collector can attach
+# and start recording before the discovery burst fires. Unset or 0 (every other lab) skips
+# it. After the bag branch so Lab 4 replay is untouched; before the launch below so the
+# whole robot starts late as one unit.
+start_delay="${MOCK_START_DELAY:-0}"
+if [[ "$start_delay" != 0 ]]; then
+    echo "run_mock_robot: holding startup ${start_delay}s so a collector can attach first"
+    sleep "$start_delay"
+fi
+
 # Namespace: explicit (routed pins robot_a, robot_b, ...) or /robot_<last IP octet>.
 if [[ -n "${ROBOT_NS:-}" ]]; then
     NS="${ROBOT_NS#/}"

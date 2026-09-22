@@ -11,6 +11,11 @@ PINNED_ROBOTS="${EX1_PINNED_ROBOTS:-3}"
 # persisted there from an earlier lab would silently override the fixture's RMW.
 export WORKSHOP_RMW="${WORKSHOP_RMW:-cyclone}"
 
+# Hold each robot's ROS startup a few seconds so the fleet collector (started at the end of
+# this script) is already recording when the fleet emits its discovery burst. Overridable
+# so the delay can be tuned to the host's bringup speed.
+export MOCK_START_DELAY="${MOCK_START_DELAY:-12}"
+
 [[ "$DEFAULT_ROBOTS" =~ ^[1-9][0-9]*$ ]] || {
     echo "usage: ex1_up.sh [default-robot-count]" >&2
     exit 2
@@ -35,3 +40,10 @@ if [[ "${WORKSHOP_RMW:-cyclone}" == cyclone ||
 else
     "$REPO_ROOT/scripts/workshop" -t flat up "$TOTAL_ROBOTS"
 fi
+
+# The fleet collector is normally its own step (`workshop -t flat collector up`). Start it
+# here, right after bringup, so it attaches during the MOCK_START_DELAY window and records
+# the discovery burst instead of the settled tail. Export the pinned count so the collector
+# splits named vs default robots the same way the fixture did. Needs Netdata already up.
+export EX1_PINNED_ROBOTS="$PINNED_ROBOTS"
+"$REPO_ROOT/scripts/workshop" -t flat collector up

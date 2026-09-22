@@ -1,5 +1,13 @@
 # 2. Read the matrix
 
+## Workshop strategy
+
+This exercise uses the pre-recorded reports in
+[`lab4-benchmarking-and-decision/exercises/benchmarks/baseline-templateA/`](benchmarks/baseline-templateA/) and
+[`lab4-benchmarking-and-decision/exercises/benchmarks/baseline-templateB/`](benchmarks/baseline-templateB/). No benchmark run is
+required. Treat the reports as fixed evidence for analysis: explain what they show, what
+they do not show, and how the weights affect the recommendation.
+
 A Pugh matrix is only as defensible as the weights behind it. This exercise teaches you
 to read `pugh.md`, distinguish measured from manually scored criteria, and explain the
 recommendation rather than simply naming a winner.
@@ -30,7 +38,7 @@ change.
 
 ### Where the weights come from
 
-The weights are declared in [`benchmark.yaml`](../scripts/benchmark.yaml) under
+The weights are declared in [`lab4-benchmarking-and-decision/scripts/benchmark.yaml`](../scripts/benchmark.yaml) under
 `decision.weights`: `A:` applies to the local synthetic baseline and `B:` applies to
 the fleet replay. Each criterion has a weight from 1 (least important) to 5 (most
 important). For example, **Template A** gives `cpu_overhead: 5`, while **Template B** gives
@@ -82,9 +90,9 @@ assessments in `manual_scores.yaml` and rerun the scorer as shown in
 
 ## Steps
 
-1. Open the `pugh.md` from [Exercise 1](1_same_traffic_different_rmw.md)'s **Template A**
-   sweep and its clean **Template B** sweep, and the criteria table in
-   [`benchmark.yaml`](../scripts/benchmark.yaml) (`decision.criteria` and
+1. Open `pugh.md` in the supplied **Template A** and **Template B** benchmark
+   directories, and open the criteria table in
+   [`lab4-benchmarking-and-decision/scripts/benchmark.yaml`](../scripts/benchmark.yaml) (`decision.criteria` and
    `decision.weights`).
 
 2. For each criterion, identify whether it is `metric:`-scored (from a measured number) or
@@ -106,44 +114,14 @@ assessments in `manual_scores.yaml` and rerun the scorer as shown in
    a blended score. Pick the criterion that moves most and trace it to its backing raw
    metric in `comparison.md`.
 
-6. **Optional: test priorities for your own deployment.** Edit only the relevant `A:`
-   or `B:` values under `decision.weights` in `benchmark.yaml`, keeping weights in the
-   1-5 range. Then regenerate an existing matrix without rerunning the benchmark:
-
-   ```bash
-   docker exec --user "$(id -u):$(id -g)" -e HOME=/tmp ubuntu-headless \
-     python3 /scripts/lab4/pugh.py /captures/<SWEEP_ID>
-   ```
-
-   Compare the new `pugh.md` with the earlier one and identify which changed weight
-   changed the ranking. Keep the workshop defaults for the required exercise; use
-   alternate weights to make a deployment-specific decision, not to manufacture a
-   preferred winner.
-
-7. **Optional: score the manual criteria.** Create `manual_scores.yaml` beside the
-    sweep's `pugh.md`. Scores are $1$–$5$ assessments, not measurements; give every RMW
-    a score only when your observations justify it. For example:
-
-    ```yaml
-    B:
-       S0:
-          cyclone: { ease_config: 4, discovery_robust: 4, loss_jitter_behaviour: 3 }
-          fastdds: { ease_config: 3, discovery_robust: 3, loss_jitter_behaviour: 3 }
-          zenoh: { ease_config: 4, discovery_robust: 4, loss_jitter_behaviour: 4 }
-    ```
-
-    Regenerate the matrix with the command in Step 6. The `†` marker disappears only for
-    criteria you scored. [Exercise 5](5_after_the_workshop.md) has the same workflow for
-    applying your own deployment evidence.
-
 <details>
 <summary>Answer: what the matrix is telling you</summary>
 
 **Template A** (`Local Robot / Single System`) weighs `cpu_overhead` and `ease_config`
 highest. In its minimal two-container baseline, the RMW's resource cost and configuration
 effort are the main differentiators because no impairment is applied. **Template B**
-(`Distributed Robot + Fleet Manager`) weighs `reliability`, `loss_jitter_behaviour`, and
-`discovery_robust` highest: once the system is distributed, behaviour when a link degrades
+(`Distributed Robot + Fleet Manager`) weighs `reliability`, `loss_jitter_behaviour`,
+`latency_p99`, and `data_freshness` highest: once the system is distributed, behaviour when a link degrades
 dominates whether it stays usable.
 
 The outcome is not one universal RMW winner. First, reject a suppressed ranking: it has
@@ -167,12 +145,5 @@ neutral default is honest when nobody has scored them yet, but it also means the
 has only provisional evidence for that dimension.
 </details>
 
-## When it does not work
-
-**Every criterion in a row is neutral (3/5) and the ranking looks meaningless.** That
-means none of the metric-backed criteria produced a clear winner (check the sweep
-actually ran enough cells) or the manual ones dominate the weights and nobody's scored
-them yet. See [Exercise 5](5_after_the_workshop.md) for how to do that.
-
-Move on to [Exercise 3](3_stressed_vs_clean.md), which creates Lab 4's own controlled
-stressed matrix alongside the clean baseline.
+Move on to [Exercise 3](3_stressed_vs_clean.md), which compares the supplied stressed
+matrix with the supplied clean baseline.

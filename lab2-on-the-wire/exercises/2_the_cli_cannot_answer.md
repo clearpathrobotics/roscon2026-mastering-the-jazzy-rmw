@@ -62,13 +62,13 @@ Runs on Fast DDS first, then the same thing on Cyclone.
 > trying to make discovery appear in a capture, use `--no-daemon`, run `ros2 daemon stop`
 > first, or start a real node.
 
-4. Go to the wire. In the viewer, open the newest window and click **Fragments**.
+5. Go to the wire. In the viewer, open the newest window and click **Fragments**.
 
-5. It reads `0 of N displayed`, in red, and this time that is not a mistake. Fast DDS hands
+6. It reads `0 of N displayed`, in red, and this time that is not a mistake. Fast DDS hands
    the whole 41 KB JPEG to the kernel as one datagram and lets IP split it. There is no
    RTPS-level fragmentation to find.
 
-6. Predict what Cyclone will do, then swap the whole fleet under it:
+7. Predict what Cyclone will do, then swap the whole fleet under it:
 
    ```bash
    scripts/workshop observer capture stop
@@ -79,12 +79,12 @@ Runs on Fast DDS first, then the same thing on Cyclone.
    scripts/workshop -t flat netem poor
    ```
 
-7. Re-run step 2's `ros2 topic hz`. The camera holds far steadier and lands well above what
+8. Re-run step 2's `ros2 topic hz`. The camera holds far steadier and lands well above what
    Fast DDS managed on the same profile. So the CLI can tell you Cyclone does better here.
    It cannot tell you what Cyclone is doing differently, which is the question you actually
    have.
 
-8. Open the newest window and click **Fragments** again. Thousands of frames, against zero
+9. Open the newest window and click **Fragments** again. Thousands of frames, against zero
    a moment ago, on a fleet that is otherwise identical.
 
 <details style="border: 2px solid #333; padding: 5px">

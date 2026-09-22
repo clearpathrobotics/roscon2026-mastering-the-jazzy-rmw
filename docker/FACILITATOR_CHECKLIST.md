@@ -7,17 +7,20 @@ Run this checklist on the workshop hardware before the event. Keep the resulting
 
 1. Use native Linux or WSL2 on amd64 with Docker Compose v2, at least 16 GB RAM,
    and roughly 15 GB free disk space.
-2. Start Docker, then preload the main-stack images and build the Lab 1
-   operator view reused by Lab 3:
+2. Start Docker, then pull the four workshop images:
+
+   ```bash
+   scripts/workshop pull
+   ```
+
+   Build locally instead only when GHCR is unavailable or the checkout's Dockerfiles
+   changed:
 
    ```bash
    cd docker
-   docker compose pull ubuntu-headless
-   docker compose -f netdata/netdata.yml --profile netdata build netdata
-   # Rebuild when the checkout's Dockerfile changed, or when GHCR is unavailable:
    docker compose build ubuntu-headless
-   cd lichtblick
-   docker compose -f lichtblick.yml build lichtblick
+   docker compose -f netdata/netdata.yml --profile netdata build netdata
+   docker compose -f lichtblick/lichtblick.yml build lichtblick
    cd ..
    ```
 
@@ -25,7 +28,7 @@ Run this checklist on the workshop hardware before the event. Keep the resulting
 
    ```bash
    sudo modprobe -a sch_netem ifb act_mirred sch_htb
-   bash scripts/preflight.sh
+   scripts/workshop preflight
    ```
 
 4. Verify the published benchmark asset before attendees arrive:
@@ -73,7 +76,7 @@ scripts/workshop -t routed up 2
 bash docker/scripts/host_forwarding.sh check
 bash lab3-stress-testing/scripts/routed_test.sh --verbose
 scripts/workshop -t routed netem good
-scripts/workshop -t routed netem list
+scripts/workshop -t routed netem status
 docker exec wifi-ap bash -lc \
   'timeout 5 tshark -q -i any -f "net 172.40.0.0/16" -z io,stat,5 || test $? -eq 124'
 scripts/workshop -t routed down

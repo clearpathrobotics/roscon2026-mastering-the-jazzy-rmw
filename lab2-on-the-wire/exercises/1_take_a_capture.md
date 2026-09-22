@@ -23,6 +23,11 @@ from [Setup](../README.md).
    ```
    Wait until three files have appeared before going on.
 
+   If Webshark is not capturing:
+   ```
+   chmod 777 lab2-on-the-wire/captures/
+   ```
+
 2. Open <http://localhost:8085/webshark/> and click the file at the top of the list.
    That is the newest window, as Webshark sorts newest on top.
 
@@ -92,6 +97,11 @@ window and zero in the second, so the blind spot survives the change of protocol
 **The file list is empty.** `scripts/workshop observer capture start` writes into `captures/`, which the viewer
 mounts. Check that new `live_<rmw>_*.pcap` files appear under
 `lab2-on-the-wire/captures/`, or that the webshark file list populates.
+
+**No files appear and the log says `tshark did not start capturing`.** The captures
+directory must be writable by the capturing process (tshark drops privileges to write).
+The harness sets this automatically, but if an earlier run left the directory owned by
+another user, fix it once with `sudo chmod 1777 lab2-on-the-wire/captures`.
 
 **SPDP is empty too.** That is not this exercise's failure. The capture is not seeing the
 fleet's traffic at all, so check the observer container is up.

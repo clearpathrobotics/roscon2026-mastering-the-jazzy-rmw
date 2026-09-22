@@ -56,6 +56,7 @@ Usage: workshop [-t star|flat|routed] [--build] [--model a300|r100|j100] <up|dow
                  placeholders (MOCK_ROBOT_<k>_IP, OBSERVER_IP, OBSERVER_IP_BR<k>) instead
                  of real IPs (mutually exclusive with --skip-gen)
   down [--all]   Tear the fleet down; --all also stops webshark/netdata/collector/lichtblick/lab4-core
+  pull           Pull the four workshop Docker images from the registry
   webshark <up|down>  Bring the webshark capture viewer up/down (independent of any fleet)
   netdata <up|down>   Bring Netdata up/down (independent of any fleet)
   observer bridge  Start the idle observer's Foxglove bridge (any topology)
@@ -82,8 +83,8 @@ Options: --build (build the ROS workspace in-container - editable source, works 
          --model MODEL[,MODEL...] (per-robot model a300|r100|j100; a single
          value applies to every robot, a list is assigned to robot 1..N in order and cycles
          when shorter than N, extra entries ignored). --rmw-directory DIR uses a pre-built
-         config directory for the selected RMW instead of generating it (flat+cyclone,
-         routed+zenoh only). Also WORKSHOP_BUILD=1 / WORKSHOP_MODEL.
+         config directory for the selected RMW instead of generating it (any topology and
+         RMW). Also WORKSHOP_BUILD=1 / WORKSHOP_MODEL.
 Topology also via -t/--topology or WORKSHOP_TOPOLOGY; RMW via 3rd arg or WORKSHOP_RMW.
 EOF
 }
@@ -114,8 +115,14 @@ main() {
         lichtblick) cmd_lichtblick "$@" ;;
         webshark) cmd_webshark "$@" ;;
         netdata) cmd_netdata "$@" ;;
+        pull) cmd_pull "$@" ;;
         shell) cmd_shell "$@" ;;
-        netem) cmd_netem "$topo" "$@" ;;
+        netem)
+            # Bare netem (status) with no explicit -t should read the fleet that is
+            # actually running, not the star default, so it reports the AP/link shaping
+            # instead of "star has no shaping".
+            [[ -n "$topo_set" ]] || { local rt; rt="$(running_topology)"; [[ -n "$rt" ]] && topo="$rt"; }
+            cmd_netem "$topo" "$@" ;;
         preflight)
             # Bare preflight (no explicit -t) should check the fleet that is actually
             # running, not the star default, so it doesn't report a missing compose file.

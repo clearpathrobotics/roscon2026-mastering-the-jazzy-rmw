@@ -1,0 +1,25 @@
+{
+  // Observer as a peer dialing the wifi-ap hub directly. This harness runs no local
+  // rmw_zenohd on the observer, so instead of running a per-host observer router that
+  // uplinks to wifi-ap, it dials the hub itself; every robot's router uplinks to
+  // wifi-ap:7447, so the observer still sees the whole fleet through the hub.
+  //
+  // Gossip stays ON here (unlike the robots): with no local router, the observer's own
+  // co-located nodes (fleet_map and the Foxglove bridge) discover each other through
+  // gossip. Turn it off and the fleet map never reaches Lichtblick. This is a property
+  // of the observer's own discovery, not the robot-to-robot hub-and-spoke path.
+  mode: "peer",
+  connect: { endpoints: ["tcp/wifi-ap:7447"] },
+  scouting: {
+    multicast: {
+      enabled: false,
+      autoconnect: { router: ["router", "peer"], peer: ["router", "peer"] },
+    },
+    gossip: {
+      enabled: true,
+      autoconnect: { router: ["router", "peer"], peer: ["router", "peer"] },
+    },
+  },
+  timestamping: { enabled: true },
+  transport: { shared_memory: { enabled: false } },
+}
