@@ -1,12 +1,12 @@
 # ROSCon 2026 Workshop: Mastering the Jazzy RMW
 
+https://github.com/user-attachments/assets/22b9f6e9-ff9d-45d1-b13e-e9fbd9f1a2b7
+
 **A performance-driven framework for ROS 2 middleware selection and tuning.**
 
-Default RMW settings can fail as systems scale. Many teams inherit tuning configurations that worked on previous projects but fail under new loads. This workshop replaces guesswork with a repeatable workflow for ROS 2 Jazzy.
+Many teams start with defaults or inherit tuning configurations that worked on previous projects but fail under new loads. This workshop replaces guesswork with a repeatable workflow for ROS 2 Jazzy.
 
-The session centers on tuning and benchmarking through hands-on labs. Participants configure and measure Fast DDS, Cyclone DDS, and Zenoh instead of treating middleware as a black box. Using a multi-modal MCAP dataset, attendees run high-scale stress tests on their own hardware to see how middleware behaviour has changed since Humble. The workshop focuses on practical techniques for resolving bottlenecks that only appear at scale.
-
-Attendees leave with a reusable benchmarking workflow and enough data to justify tuning decisions.
+The session centers on tuning and benchmarking through hands-on labs. Participants configure and measure Fast DDS, Cyclone DDS, and Zenoh instead of treating middleware as a black box. The workshop focuses on practical techniques for resolving bottlenecks that only appear at scale.
 
 ## Workshop labs
 
